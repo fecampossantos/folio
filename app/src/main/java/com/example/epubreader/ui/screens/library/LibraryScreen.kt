@@ -223,32 +223,7 @@ fun LibraryScreen(
                     singleLine = true
                 )
 
-                // Active Folder Banner
-                uiState.selectedFolderUri?.let { uriStr ->
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Folder: ${Uri.parse(uriStr).lastPathSegment ?: uriStr}",
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            TextButton(onClick = onSelectFolderClick) {
-                                Text("Change", style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
-                }
+
 
                 // Main Library Content List
                 Box(modifier = Modifier.fillMaxSize()) {
