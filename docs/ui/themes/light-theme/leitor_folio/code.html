@@ -1,0 +1,136 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Source+Serif+4:ital,wght@0,400;0,600;1,400&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-primary-fixed": "#0f1f13", "primary": "#475949", "surface-container": "#f6edde", "surface-tint": "#516353", "secondary-container": "#e6dfd5", "tertiary-fixed-dim": "#cbc7b5", "on-secondary-container": "#67625b", "on-primary": "#ffffff", "on-background": "#1f1b12", "surface-container-high": "#f0e7d8", "surface-variant": "#eae1d2", "outline-variant": "#c3c8c1", "on-primary-fixed-variant": "#3a4b3c", "inverse-primary": "#b8ccb9", "on-secondary-fixed": "#1e1b16", "on-tertiary": "#ffffff", "primary-fixed": "#d4e8d4", "surface-bright": "#fff8f1", "on-secondary-fixed-variant": "#4a463f", "surface-container-highest": "#eae1d2", "outline": "#737872", "tertiary-fixed": "#e7e3d1", "on-tertiary-container": "#f5f0de", "on-surface": "#1f1b12", "background": "#fff8f1", "primary-fixed-dim": "#b8ccb9", "surface-dim": "#e2d9ca", "on-secondary": "#ffffff", "inverse-on-surface": "#f9f0e0", "on-tertiary-fixed": "#1d1c11", "on-error-container": "#93000a", "surface-container-low": "#fcf2e3", "on-error": "#ffffff", "secondary": "#625e56", "surface": "#fff8f1", "secondary-fixed-dim": "#ccc5bd", "surface-container-lowest": "#ffffff", "tertiary": "#575547", "on-tertiary-fixed-variant": "#49473a", "inverse-surface": "#343026", "on-surface-variant": "#434843", "secondary-fixed": "#e9e1d8", "primary-container": "#5f7161", "error-container": "#ffdad6", "on-primary-container": "#e1f5e1", "error": "#ba1a1a", "tertiary-container": "#706d5f" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "container-padding": "24px", "reading-margin-max": "640px", "unit": "8px", "gutter": "16px" }, "fontFamily": { "ui-label-lg": ["Inter"], "caption": ["Inter"], "reading-body": ["'Source Serif 4'"], "ui-label-sm": ["Inter"], "display-lg-mobile": ["'Source Serif 4'"], "headline-md": ["'Source Serif 4'"], "display-lg": ["'Source Serif 4'"] } } } }</script></head><body class="bg-surface text-on-surface overflow-hidden"><main class="h-screen w-screen flex flex-col justify-center items-center px-container-padding"><div class="flex flex-col w-full max-w-[reading-margin-max] mx-auto animate-in fade-in duration-700">
+<!-- Reader Header: Floating glassmorphism effect -->
+<nav class="sticky top-0 z-30 flex flex-col gap-2 py-4 px-4 bg-surface/80 backdrop-blur-md transition-all duration-300">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-variant/50 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">arrow_back_ios_new</span>
+</button>
+<div class="flex flex-col overflow-hidden">
+<h1 class="font-headline-md text-ui-label-lg truncate text-on-surface">The Alchemist's Silence</h1>
+<p class="font-caption text-caption text-on-secondary-container">Chapter IV: The Echoing Chamber</p>
+</div>
+</div>
+<div class="flex items-center gap-1">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-primary-fixed-dim transition-colors group" id="listenBtn">
+<span class="material-symbols-outlined text-primary group-active:scale-90 transition-transform">headphones</span>
+</button>
+<button class="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-variant/50 transition-colors" id="bookmarkBtn">
+<span class="material-symbols-outlined text-on-surface-variant transition-all" id="bookmarkIcon">bookmark</span>
+<!-- Subtle ribbon animation indicator -->
+<div class="absolute -top-1 right-2 w-1 h-0 bg-primary transition-all duration-500 rounded-b-full" id="bookmarkRibbon"></div>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-variant/50 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">text_fields</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-variant/50 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">menu_book</span>
+</button>
+</div>
+</div>
+</nav>
+<!-- Reading Surface -->
+<article class="relative px-6 py-8 md:px-12 selection:bg-primary-fixed selection:text-on-primary-fixed-variant">
+<!-- Visual Accent: Top of Page Flourish -->
+<div class="flex justify-center mb-12 opacity-20">
+<svg class="text-primary" fill="none" height="20" viewBox="0 0 40 20" width="40" xmlns="http://www.w3.org/2000/svg">
+<path d="M0 10C10 10 10 0 20 0C30 0 30 10 40 10C30 10 30 20 20 20C10 20 10 10 0 10Z" fill="currentColor"></path>
+</svg>
+</div>
+<div class="font-reading-body text-reading-body text-on-surface leading-relaxed space-y-8 text-justify transition-opacity duration-500" id="readerContent">
+<p class="first-letter:text-5xl first-letter:font-headline-md first-letter:float-left first-letter:mr-3 first-letter:mt-2 first-letter:text-primary">
+        The air in the library didn't just smell of parchment and old ink; it tasted of forgotten centuries. Julian stepped further into the gloom, his lantern casting long, flickering shadows that danced against the leather-bound spines of books that hadn't been touched since the Great Fire. 
+      </p>
+<p>
+        "Some secrets," the old curator had whispered before handing over the iron key, "are not meant to be read. They are meant to be felt, like the weight of a heavy winter coat." At the time, Julian had dismissed it as the theatrics of a lonely man. Now, standing amidst the silence, the weight felt literal.
+      </p>
+<p>
+        He traced his finger along a shelf labeled <em>Aetherial Transmutations</em>. The dust was thick, a grey blanket muffling the history beneath. There was a peculiar vibration in the air, a low-frequency hum that seemed to resonate with the very marrow of his bones.
+      </p>
+<p>
+        It was then that he saw it. A single volume, bound in what appeared to be iridescent silk, pulsing with a faint, rhythmic light. It wasn't the lantern's reflection. The book was breathing.
+      </p>
+<p>
+        Julian reached out, his hand trembling. The hum grew louder, transforming into a chorus of whispers that filled his mind with fragments of equations and celestial coordinates. He pulled the volume from its resting place, and the library seemed to exhale.
+      </p>
+</div>
+<!-- Page Turning Overlay Areas (Subtle) -->
+<div class="fixed inset-y-0 left-0 w-16 group cursor-w-resize flex items-center justify-start pl-4">
+<div class="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-full bg-surface-container-high/40">
+<span class="material-symbols-outlined text-outline">chevron_left</span>
+</div>
+</div>
+<div class="fixed inset-y-0 right-0 w-16 group cursor-e-resize flex items-center justify-end pr-4">
+<div class="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-full bg-surface-container-high/40">
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</div>
+</div>
+</article>
+<!-- Reader Footer -->
+<footer class="mt-auto px-6 py-8 border-t border-outline-variant/30">
+<div class="flex flex-col gap-4">
+<!-- Progress Bar -->
+<div class="w-full h-1 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[34%] transition-all duration-1000 ease-out"></div>
+</div>
+<div class="flex items-center justify-between text-on-secondary-container">
+<div class="flex flex-col">
+<span class="font-ui-label-sm text-ui-label-sm">34% Read</span>
+<span class="font-caption text-caption opacity-70">24 mins left</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-ui-label-sm text-ui-label-sm">Page 112</span>
+<span class="font-caption text-caption opacity-70">of 328</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-ui-label-sm text-ui-label-sm">285 wpm</span>
+<span class="font-caption text-caption opacity-70">Focusing</span>
+</div>
+</div>
+</div>
+</footer>
+<script>
+    // Simple Interaction Logic
+    const bookmarkBtn = document.getElementById('bookmarkBtn');
+    const bookmarkIcon = document.getElementById('bookmarkIcon');
+    const bookmarkRibbon = document.getElementById('bookmarkRibbon');
+    let isBookmarked = false;
+
+    bookmarkBtn.addEventListener('click', () => {
+      isBookmarked = !isBookmarked;
+      if (isBookmarked) {
+        bookmarkIcon.style.fontVariationSettings = "'FILL' 1";
+        bookmarkIcon.classList.add('text-primary');
+        bookmarkRibbon.classList.replace('h-0', 'h-6');
+      } else {
+        bookmarkIcon.style.fontVariationSettings = "'FILL' 0";
+        bookmarkIcon.classList.remove('text-primary');
+        bookmarkRibbon.classList.replace('h-6', 'h-0');
+      }
+    });
+
+    // Page turn simulation effect
+    const content = document.getElementById('readerContent');
+    const turnPage = () => {
+      content.classList.add('opacity-0');
+      setTimeout(() => {
+        content.classList.remove('opacity-0');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 300);
+    };
+
+    document.querySelector('.cursor-e-resize').addEventListener('click', turnPage);
+    document.querySelector('.cursor-w-resize').addEventListener('click', turnPage);
+
+    // Scroll opacity for header
+    window.addEventListener('scroll', () => {
+      const nav = document.querySelector('nav');
+      if (window.scrollY > 20) {
+        nav.classList.add('shadow-sm', 'bg-surface/95');
+      } else {
+        nav.classList.remove('shadow-sm', 'bg-surface/95');
+      }
+    });
+  </script>
+</div></main></body></html>

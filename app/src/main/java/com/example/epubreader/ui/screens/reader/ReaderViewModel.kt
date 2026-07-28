@@ -21,7 +21,7 @@ import java.util.UUID
  * Reader UI theme options.
  */
 enum class ReaderThemeMode {
-    LIGHT, DARK, SEPIA
+    LIGHT, DARK
 }
 
 /**

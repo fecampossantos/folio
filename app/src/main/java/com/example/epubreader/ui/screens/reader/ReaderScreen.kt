@@ -1,12 +1,22 @@
 package com.example.epubreader.ui.screens.reader
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.unit.Constraints
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -23,8 +33,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.epubreader.ui.theme.SepiaBackground
-import com.example.epubreader.ui.theme.SepiaText
+import com.example.epubreader.ui.theme.AppThemeMode
+import com.example.epubreader.ui.theme.EpubReaderTheme
 import com.example.epubreader.util.EpubParser
 import kotlinx.coroutines.launch
 
@@ -71,69 +81,129 @@ fun ReaderScreen(
 ) {
     var showMenuModal by remember { mutableStateOf(false) }
     var showSettingsModal by remember { mutableStateOf(false) }
+    var isFullscreen by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     val isCurrentChapterBookmarked = uiState.bookmarks.any { it.chapterIndex == uiState.currentChapterIndex }
 
-    // Determine reader background & text colors strictly from ThemeMode
-    val (backgroundColor, textColor) = when (uiState.themeMode) {
-        ReaderThemeMode.LIGHT -> Pair(Color(0xFFFFFFFF), Color(0xFF1C1B1F))
-        ReaderThemeMode.DARK -> Pair(Color(0xFF121212), Color(0xFFE0E0E0))
-        ReaderThemeMode.SEPIA -> Pair(SepiaBackground, SepiaText)
+    val appThemeMode = when (uiState.themeMode) {
+        ReaderThemeMode.LIGHT -> AppThemeMode.LIGHT
+        ReaderThemeMode.DARK -> AppThemeMode.DARK
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    EpubReaderTheme(appThemeMode = appThemeMode) {
+        val backgroundColor = MaterialTheme.colorScheme.background
+        val textColor = MaterialTheme.colorScheme.onBackground
+
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val widthDp = with(density) { constraints.maxWidth.toDp().value }
         val heightDp = with(density) { constraints.maxHeight.toDp().value }
 
         val fontSizeSp = uiState.fontSizeSp
-        val fontHeightDp = fontSizeSp * 1.4f
-        val fontWidthDp = fontSizeSp * 0.5f
+        val textStyle = MaterialTheme.typography.bodyLarge.copy(
+            fontSize = fontSizeSp.sp,
+            lineHeight = (fontSizeSp * 1.5f).sp
+        )
 
         val availableHeightDp = (heightDp - 140f).coerceAtLeast(100f)
         val availableWidthDp = (widthDp - 48f).coerceAtLeast(100f)
+        
+        val exactWidthPx = with(density) { availableWidthDp.dp.toPx().toInt() }.coerceAtLeast(1)
+        val exactHeightPx = with(density) { availableHeightDp.dp.toPx().toInt() }.coerceAtLeast(1)
 
-        val linesPerPage = (availableHeightDp / fontHeightDp).toInt().coerceAtLeast(5)
-        val charsPerLine = (availableWidthDp / fontWidthDp).toInt().coerceAtLeast(20)
-        val targetPageChars = (linesPerPage * charsPerLine * 1.25f).toInt().coerceIn(600, 4500)
+        var allBookPages by remember { mutableStateOf<List<BookPageLocation>>(emptyList()) }
+        var isPaginating by remember { mutableStateOf(false) }
+        val textMeasurer = rememberTextMeasurer()
 
-        // Paginate ALL chapters across the entire book into a single seamless continuous HorizontalPager
-        val allBookPages = remember(uiState.chapters, targetPageChars) {
-            val list = mutableListOf<BookPageLocation>()
-            uiState.chapters.forEachIndexed { chIdx, chapter ->
-                val chapterPages = EpubParser.paginateText(chapter.content, targetPageChars)
-                chapterPages.forEachIndexed { pageIdx, pageText ->
-                    list.add(
-                        BookPageLocation(
-                            chapterIndex = chIdx,
-                            pageIndexInChapter = pageIdx,
-                            chapterTitle = chapter.title,
-                            text = pageText
+        LaunchedEffect(uiState.chapters, fontSizeSp, exactWidthPx, exactHeightPx) {
+            if (uiState.chapters.isEmpty()) return@LaunchedEffect
+            
+            isPaginating = true
+            val pageConstraints = Constraints(maxWidth = exactWidthPx, maxHeight = exactHeightPx)
+            
+            val newPages = withContext(Dispatchers.Default) {
+                val list = mutableListOf<BookPageLocation>()
+                val chunkSize = 4000
+                
+                uiState.chapters.forEachIndexed { chIdx, chapter ->
+                    var remainingText = chapter.content
+                    var pageIdx = 0
+                    
+                    while (remainingText.isNotEmpty()) {
+                        var attemptSize = chunkSize
+                        var chunk = if (remainingText.length > attemptSize) remainingText.substring(0, attemptSize) else remainingText
+                        
+                        var result = textMeasurer.measure(
+                            text = AnnotatedString(chunk),
+                            style = textStyle,
+                            constraints = pageConstraints
                         )
-                    )
+                        
+                        while (result.lineCount > 0 && result.getLineBottom(result.lineCount - 1) <= pageConstraints.maxHeight && chunk.length < remainingText.length) {
+                            attemptSize += 2000
+                            chunk = if (remainingText.length > attemptSize) remainingText.substring(0, attemptSize) else remainingText
+                            result = textMeasurer.measure(
+                                text = AnnotatedString(chunk),
+                                style = textStyle,
+                                constraints = pageConstraints
+                            )
+                        }
+
+                        var lastLineIndex = result.lineCount - 1
+                        while (lastLineIndex >= 0 && result.getLineBottom(lastLineIndex) > pageConstraints.maxHeight) {
+                            lastLineIndex--
+                        }
+                        
+                        if (lastLineIndex < 0) break
+                        
+                        val endIndex = result.getLineEnd(lastLineIndex, visibleEnd = true)
+                        if (endIndex <= 0) break
+                        
+                        val pageText = remainingText.substring(0, endIndex).trim()
+                        
+                        list.add(
+                            BookPageLocation(
+                                chapterIndex = chIdx,
+                                pageIndexInChapter = pageIdx,
+                                chapterTitle = chapter.title,
+                                text = pageText
+                            )
+                        )
+                        remainingText = remainingText.substring(endIndex).trimStart()
+                        pageIdx++
+                    }
                 }
+                if (list.isEmpty()) {
+                    list.add(BookPageLocation(0, 0, "Content", "No content available"))
+                }
+                list
             }
-            if (list.isEmpty()) {
-                list.add(BookPageLocation(0, 0, "Content", "No content available"))
-            }
-            list
+            
+            allBookPages = newPages
+            isPaginating = false
         }
-
-        // Find initial global page index matching saved chapter and page index
-        val initialGlobalPage = remember(allBookPages, uiState.currentChapterIndex, uiState.currentPageIndex) {
-            val idx = allBookPages.indexOfFirst {
-                it.chapterIndex == uiState.currentChapterIndex && it.pageIndexInChapter == uiState.currentPageIndex
-            }
-            if (idx >= 0) idx else allBookPages.indexOfFirst { it.chapterIndex == uiState.currentChapterIndex }.coerceAtLeast(0)
-        }
-
+        
         val pagerState = rememberPagerState(
-            initialPage = initialGlobalPage.coerceIn(0, (allBookPages.size - 1).coerceAtLeast(0)),
-            pageCount = { allBookPages.size }
+            initialPage = 0,
+            pageCount = { allBookPages.size.coerceAtLeast(1) }
         )
 
-        val activeLocation = allBookPages.getOrNull(pagerState.currentPage) ?: allBookPages[0]
+        LaunchedEffect(allBookPages) {
+            if (allBookPages.isNotEmpty() && !isPaginating) {
+                val targetGlobalIdx = allBookPages.indexOfFirst {
+                    it.chapterIndex == uiState.currentChapterIndex && it.pageIndexInChapter == uiState.currentPageIndex
+                }
+                val finalIdx = if (targetGlobalIdx >= 0) targetGlobalIdx else {
+                    allBookPages.indexOfFirst { it.chapterIndex == uiState.currentChapterIndex }.coerceAtLeast(0)
+                }
+                if (pagerState.currentPage != finalIdx) {
+                    pagerState.scrollToPage(finalIdx)
+                }
+            }
+        }
+        
+        val activeLocation = allBookPages.getOrNull(pagerState.currentPage) ?: BookPageLocation(0, 0, "Content", "")
 
         // Notify page and chapter changes for exact JSON persistence whenever user scrolls horizontally
         LaunchedEffect(pagerState.currentPage) {
@@ -145,7 +215,12 @@ fun ReaderScreen(
 
         Scaffold(
             topBar = {
-                TopAppBar(
+                AnimatedVisibility(
+                    visible = !isFullscreen,
+                    enter = slideInVertically(initialOffsetY = { -it }),
+                    exit = slideOutVertically(targetOffsetY = { -it })
+                ) {
+                    TopAppBar(
                     title = {
                         Column {
                             Text(
@@ -199,9 +274,15 @@ fun ReaderScreen(
                         }
                     }
                 )
+                }
             },
             bottomBar = {
-                Surface(
+                AnimatedVisibility(
+                    visible = !isFullscreen,
+                    enter = slideInVertically(initialOffsetY = { it }),
+                    exit = slideOutVertically(targetOffsetY = { it })
+                ) {
+                    Surface(
                     tonalElevation = 3.dp,
                     shadowElevation = 8.dp
                 ) {
@@ -262,6 +343,7 @@ fun ReaderScreen(
                         }
                     }
                 }
+                }
             }
         ) { paddingValues ->
             Box(
@@ -269,8 +351,31 @@ fun ReaderScreen(
                     .fillMaxSize()
                     .padding(paddingValues)
                     .background(backgroundColor)
+                    .pointerInput(allBookPages.size) {
+                        detectTapGestures(
+                            onTap = { offset ->
+                                val width = size.width
+                                val x = offset.x
+                                if (x < width * 0.2f) {
+                                    if (pagerState.currentPage > 0) {
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                                        }
+                                    }
+                                } else if (x > width * 0.8f) {
+                                    if (pagerState.currentPage < allBookPages.size - 1) {
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                        }
+                                    }
+                                } else {
+                                    isFullscreen = !isFullscreen
+                                }
+                            }
+                        )
+                    }
             ) {
-                if (uiState.isLoading) {
+                if (uiState.isLoading || isPaginating) {
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -278,7 +383,7 @@ fun ReaderScreen(
                     ) {
                         CircularProgressIndicator()
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("Loading book contents...", color = textColor)
+                        Text(if (uiState.isLoading) "Loading book contents..." else "Formatting pages...", color = textColor)
                     }
                 } else if (allBookPages.isNotEmpty()) {
                     HorizontalPager(
@@ -289,16 +394,12 @@ fun ReaderScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 24.dp, vertical = 16.dp)
-                                .verticalScroll(rememberScrollState()),
+                                .padding(horizontal = 24.dp, vertical = 16.dp),
                             contentAlignment = Alignment.TopStart
                         ) {
                             Text(
                                 text = pageLoc?.text ?: "",
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontSize = uiState.fontSizeSp.sp,
-                                    lineHeight = (uiState.fontSizeSp * 1.5f).sp
-                                ),
+                                style = textStyle,
                                 color = textColor
                             )
                         }
@@ -340,11 +441,6 @@ fun ReaderScreen(
                                 selected = uiState.themeMode == ReaderThemeMode.DARK,
                                 onClick = { onThemeChanged(ReaderThemeMode.DARK) },
                                 label = { Text("Dark") }
-                            )
-                            FilterChip(
-                                selected = uiState.themeMode == ReaderThemeMode.SEPIA,
-                                onClick = { onThemeChanged(ReaderThemeMode.SEPIA) },
-                                label = { Text("Sepia") }
                             )
                         }
 
@@ -524,5 +620,6 @@ fun ReaderScreen(
                 }
             )
         }
+    }
     }
 }

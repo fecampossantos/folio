@@ -1,13 +1,13 @@
-# Contributing to Folio 📚
+# Contributing to Folio
 
-Thank you for your interest in contributing to **Folio**! We welcome bug reports, feature suggestions, documentation improvements, and code contributions.
+Thank you for your interest in contributing to **Folio**. We welcome bug reports, feature suggestions, documentation improvements, and code contributions.
 
 ---
 
-## 🚀 How to Contribute
+## How to Contribute
 
 ### 1. Reporting Bugs
-- Search existing [Issues](https://github.com/your-username/epub-reader/issues) to ensure your bug hasn't been reported.
+- Search existing issues to ensure your bug hasn't been reported.
 - Open a new issue with a descriptive title, step-by-step reproduction instructions, Android OS version, and logcat trace if available.
 
 ### 2. Suggesting Enhancements
@@ -28,7 +28,7 @@ Thank you for your interest in contributing to **Folio**! We welcome bug reports
 
 ---
 
-## 🛠️ Code Style Guidelines
+## Code Style Guidelines
 
 - **Architecture**: Keep code clean using MVVM + Repository pattern.
 - **UI Framework**: Use Jetpack Compose (Material 3).
@@ -37,5 +37,6 @@ Thank you for your interest in contributing to **Folio**! We welcome bug reports
 
 ---
 
-## 📄 License
+## License
+
 By contributing to Folio, you agree that your contributions will be licensed under the project's [MIT License](LICENSE).
