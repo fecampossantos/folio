@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.example.epubreader.data.model.BookState
 import com.example.epubreader.data.model.ReadingHistory
+import com.example.epubreader.ui.theme.AppThemeMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -19,6 +20,33 @@ import java.util.Locale
  * @param context Android Application Context used to locate internal files directory.
  */
 class ReadingStateRepository(private val context: Context) {
+
+    private val prefs by lazy {
+        context.getSharedPreferences("folio_app_prefs", Context.MODE_PRIVATE)
+    }
+
+    /**
+     * Gets the saved app theme mode selection. Defaults to LIGHT theme.
+     *
+     * @return Stored [AppThemeMode] instance.
+     */
+    fun getAppThemeMode(): AppThemeMode {
+        val name = prefs.getString("app_theme_mode", AppThemeMode.LIGHT.name)
+        return try {
+            AppThemeMode.valueOf(name ?: AppThemeMode.LIGHT.name)
+        } catch (e: Exception) {
+            AppThemeMode.LIGHT
+        }
+    }
+
+    /**
+     * Saves the user selected app theme mode.
+     *
+     * @param mode Target [AppThemeMode] instance to store.
+     */
+    fun saveAppThemeMode(mode: AppThemeMode) {
+        prefs.edit().putString("app_theme_mode", mode.name).apply()
+    }
 
     private val json = Json {
         prettyPrint = true

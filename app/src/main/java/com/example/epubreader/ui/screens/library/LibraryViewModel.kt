@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.epubreader.data.model.BookMetadata
 import com.example.epubreader.data.repository.LibraryRepository
 import com.example.epubreader.data.repository.ReadingStateRepository
+import com.example.epubreader.ui.theme.AppThemeMode
 import com.example.epubreader.util.CoverManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +35,7 @@ enum class SortOption(val label: String) {
  * @property sortOption Active sort criteria.
  * @property totalReadingTimeSeconds Total accumulated reading time across all books.
  * @property completedBooksCount Count of books completed (100% read).
+ * @property appThemeMode Active app theme mode (LIGHT, DARK, SYSTEM).
  * @property message Toast/Snackbar message notification.
  * @property errorMessage Error message if scan failed.
  */
@@ -46,6 +48,7 @@ data class LibraryUiState(
     val sortOption: SortOption = SortOption.RECENTLY_OPENED,
     val totalReadingTimeSeconds: Long = 0L,
     val completedBooksCount: Int = 0,
+    val appThemeMode: AppThemeMode = AppThemeMode.LIGHT,
     val message: String? = null,
     val errorMessage: String? = null
 )
@@ -65,7 +68,26 @@ class LibraryViewModel(
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
 
     init {
+        loadSavedTheme()
         loadSavedFolder()
+    }
+
+    /**
+     * Loads the saved app theme selection from persistent repository storage.
+     */
+    private fun loadSavedTheme() {
+        val themeMode = readingStateRepository.getAppThemeMode()
+        _uiState.value = _uiState.value.copy(appThemeMode = themeMode)
+    }
+
+    /**
+     * Updates the active app theme selection and persists choice in repository storage.
+     *
+     * @param mode Target [AppThemeMode] instance.
+     */
+    fun onAppThemeChanged(mode: AppThemeMode) {
+        _uiState.value = _uiState.value.copy(appThemeMode = mode)
+        readingStateRepository.saveAppThemeMode(mode)
     }
 
     /**
