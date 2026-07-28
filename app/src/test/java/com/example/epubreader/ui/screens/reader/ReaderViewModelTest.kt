@@ -14,10 +14,9 @@ class ReaderViewModelTest {
      */
     @Test
     fun testThemeModes() {
-        assertEquals(3, ReaderThemeMode.entries.size)
+        assertEquals(2, ReaderThemeMode.entries.size)
         assertEquals(ReaderThemeMode.LIGHT, ReaderThemeMode.valueOf("LIGHT"))
         assertEquals(ReaderThemeMode.DARK, ReaderThemeMode.valueOf("DARK"))
-        assertEquals(ReaderThemeMode.SEPIA, ReaderThemeMode.valueOf("SEPIA"))
     }
 
     /**

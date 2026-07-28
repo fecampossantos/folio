@@ -1,4 +1,4 @@
-# Folio 📚
+# Folio
 
 > **A modern, privacy-first, open-source EPUB reader for Android built with Kotlin & Jetpack Compose.**
 
@@ -7,51 +7,51 @@
 [![Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-blue.svg)](https://developer.android.com/jetpack/compose)
 [![License](https://img.shields.io/badge/License-MIT-brightgreen.svg)](LICENSE)
 
-**Folio** is a fast, offline-first native Android ebook reader designed for book lovers who value privacy, customization, and seamless reading state portability.
+**Folio** is a fast, offline-first native Android ebook reader designed for users who value privacy, customization, and seamless reading state portability.
 
 ---
 
-## ✨ Features
+## Features
 
-- 📖 **Continuous Multi-Chapter Horizontal Reader (Kindle-style)**
+- **Continuous Multi-Chapter Horizontal Reader (Kindle-style)**
   - Smooth page-flipping continuous horizontal pager across all chapters.
   - Manual swiping or navigation arrows seamlessly transition across chapter boundaries.
   - Dynamic page-budgeting engine ensuring multi-paragraph text fitting even at large font sizes (> 26sp).
 
-- 🖼️ **Book Cover Extraction & Custom Cover Picker**
+- **Book Cover Extraction & Custom Cover Picker**
   - Automatic extraction of cover images (`.jpg`, `.png`, `.webp`) embedded inside EPUB containers.
   - Custom image picker allows assigning downloaded covers to books without embedded images.
 
-- 📂 **Folder Storage Access Framework (SAF)**
+- **Folder Storage Access Framework (SAF)**
   - Pick any local directory containing EPUB files using Android SAF tree picker.
   - Automatically scans and indexes all `.epub` books without duplicating or copying files.
 
-- 💾 **Portable JSON Reading State Persistence**
-  - All reading progress, exact chapter & page locations, reading time, bookmarks, and theme preferences are saved in human-readable `reading_history.json`.
+- **Portable JSON Reading State Persistence**
+  - All reading progress, exact chapter and page locations, reading time, bookmarks, and theme preferences are saved in human-readable `reading_history.json`.
   - Auto-resumes reading at your exact page location on launch.
 
-- 🎨 **Reading Customization**
+- **Reading Customization**
   - **Themes**: Light (`#FFFFFF`), Dark (`#121212`), and Sepia (`#FBF0D9` warm paper theme).
   - **Typography**: Dynamic font resizing (12sp to 32sp) with responsive line-height calculation.
 
-- 🗣️ **Text-To-Speech (TTS) Narration**
+- **Text-To-Speech (TTS) Narration**
   - Built-in Android TTS narration to listen to chapters on the go.
 
-- 🔖 **Table of Contents & Bookmarks**
+- **Table of Contents & Bookmarks**
   - Instant chapter navigation drawer with full Table of Contents.
   - Create, manage, and delete chapter bookmarks with text snippet previews.
 
-- 🔍 **Library Search, Sorting & Statistics**
+- **Library Search, Sorting & Statistics**
   - Search books by title, author, or file name.
   - Sort by _Recently Opened_, _Reading Progress_, _Title_, or _Author_.
   - View total reading time metrics and completed book counters.
 
-- 🔄 **JSON Backup Export & Import**
+- **JSON Backup Export & Import**
   - Export and import your reading history backup to migrate data between devices.
 
 ---
 
-## 📥 Installation
+## Installation
 
 1. Download the latest `app-release.apk` from the [Releases](https://github.com/your-username/epub-reader/releases) tab.
 2. Install the APK on your Android device (Android 7.0 / API 24 or higher).
@@ -59,7 +59,7 @@
 
 ---
 
-## 🛠️ Building from Source
+## Building from Source
 
 ### Prerequisites
 
@@ -67,7 +67,7 @@
 - **Android SDK** (API Level 34).
 - Set `ANDROID_HOME` / `ANDROID_SDK_ROOT` environment variable.
 
-### 🐧 Building on Linux
+### Building on Linux
 
 ```bash
 # 1. Set environment variables
@@ -84,7 +84,7 @@ chmod +x gradlew
 ./gradlew assembleRelease
 ```
 
-### 🪟 Building on Windows
+### Building on Windows
 
 ```powershell
 # 1. Set environment variables (PowerShell)
@@ -105,19 +105,19 @@ $env:ANDROID_HOME="$env:LOCALAPPDATA\Android\Sdk"
 
 ---
 
-## 🔄 Cross-Device Synchronization with Syncthing
+## Cross-Device Synchronization with Syncthing
 
 You can pair Folio with **[Syncthing](https://syncthing.net/)** to sync your book library and reading history across Android devices, PCs, or NAS servers:
 
 1. **Sync Books Folder**:
    - Share your EPUB directory across devices using Syncthing.
 2. **Sync Reading State**:
-   - In Folio on Device A, tap `⋮` -> **Export History Backup (JSON)** and save `reading_history_backup.json` in your synced folder.
-   - On Device B, tap `⋮` -> **Import History Backup (JSON)** to instantly restore your exact reading position.
+   - In Folio on Device A, tap the overflow menu (`⋮`) -> **Export History Backup (JSON)** and save `reading_history_backup.json` in your synced folder.
+   - On Device B, tap the overflow menu (`⋮`) -> **Import History Backup (JSON)** to instantly restore your exact reading position.
 
 ---
 
-## 🏗️ Architecture & Technology Stack
+## Architecture & Technology Stack
 
 - **Language**: Kotlin 1.9+
 - **UI Framework**: Jetpack Compose (Material 3)
@@ -128,7 +128,7 @@ You can pair Folio with **[Syncthing](https://syncthing.net/)** to sync your boo
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Feel free to report issues, suggest feature ideas, or submit pull requests.
 
@@ -141,6 +141,6 @@ Contributions are welcome! Feel free to report issues, suggest feature ideas, or
 
 ---
 
-## 📄 License
+## License
 
 Distributed under the **MIT License**. See `LICENSE` for more information.
