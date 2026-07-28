@@ -6,6 +6,7 @@ import android.speech.tts.TextToSpeech
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.epubreader.data.model.Bookmark
+import com.example.epubreader.data.model.TextSnippet
 import com.example.epubreader.data.model.BookState
 import com.example.epubreader.data.repository.ReadingStateRepository
 import com.example.epubreader.util.EpubChapter
@@ -245,6 +246,24 @@ class ReaderViewModel(
     fun setThemeMode(mode: ReaderThemeMode) {
         _uiState.value = _uiState.value.copy(themeMode = mode)
         persistState()
+    }
+
+    /**
+     * Saves a text snippet to the global reading history.
+     */
+    fun saveSnippet(text: String, note: String) {
+        val currentState = _uiState.value
+        val snippetId = UUID.randomUUID().toString()
+        val snippet = TextSnippet(
+            id = snippetId,
+            bookUriString = currentBookUri?.toString() ?: "",
+            bookTitle = currentState.title,
+            text = text,
+            note = note
+        )
+        viewModelScope.launch {
+            stateRepository.saveSnippet(snippet)
+        }
     }
 
     /**

@@ -55,12 +55,15 @@ fun LibraryScreen(
     onImportBackupClick: () -> Unit,
     onBookClick: (BookMetadata) -> Unit,
     onChangeCoverClick: (BookMetadata) -> Unit,
-    onClearMessage: () -> Unit
+    onClearMessage: () -> Unit,
+    onDeleteSnippet: (String) -> Unit,
+    onEditSnippetNote: (String, String) -> Unit
 ) {
     var showSortMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showStatsDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf("Books") }
 
     Scaffold(
         topBar = {
@@ -178,6 +181,22 @@ fun LibraryScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = selectedTab == "Books",
+                    onClick = { selectedTab = "Books" },
+                    icon = { Icon(Icons.Default.LibraryBooks, contentDescription = "Books") },
+                    label = { Text("Books") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == "Snippets",
+                    onClick = { selectedTab = "Snippets" },
+                    icon = { Icon(Icons.Default.FormatQuote, contentDescription = "Snippets") },
+                    label = { Text("Snippets") }
+                )
+            }
         }
     ) { paddingValues ->
         if (showThemeDialog) {
@@ -195,7 +214,14 @@ fun LibraryScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            if (selectedTab == "Snippets") {
+                SnippetsScreen(
+                    snippets = uiState.snippets,
+                    onDelete = onDeleteSnippet,
+                    onEditNote = onEditSnippetNote
+                )
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
                 // Search Input Bar
                 OutlinedTextField(
                     value = uiState.searchQuery,
@@ -346,6 +372,7 @@ fun LibraryScreen(
                 ) {
                     Text(error)
                 }
+            }
             }
         }
     }

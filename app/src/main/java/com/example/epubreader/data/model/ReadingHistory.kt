@@ -15,7 +15,28 @@ data class ReadingHistory(
     val version: Int = 1,
     val lastUpdated: String = "",
     val selectedFolderUri: String? = null,
-    val books: List<BookState> = emptyList()
+    val books: List<BookState> = emptyList(),
+    val snippets: List<TextSnippet> = emptyList()
+)
+
+/**
+ * Data structure representing a saved text snippet from a book.
+ *
+ * @property id Unique snippet identifier.
+ * @property bookUriString Original book URI.
+ * @property bookTitle Original book title.
+ * @property text Selected text snippet.
+ * @property note Optional user note.
+ * @property createdTimestamp Timestamp when snippet was created.
+ */
+@Serializable
+data class TextSnippet(
+    val id: String,
+    val bookUriString: String,
+    val bookTitle: String,
+    val text: String,
+    val note: String = "",
+    val createdTimestamp: Long = System.currentTimeMillis()
 )
 
 /**

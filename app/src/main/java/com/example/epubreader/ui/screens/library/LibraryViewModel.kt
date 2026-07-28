@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.epubreader.data.model.BookMetadata
+import com.example.epubreader.data.model.TextSnippet
 import com.example.epubreader.data.repository.LibraryRepository
 import com.example.epubreader.data.repository.ReadingStateRepository
 import com.example.epubreader.ui.theme.AppThemeMode
@@ -49,6 +50,7 @@ data class LibraryUiState(
     val totalReadingTimeSeconds: Long = 0L,
     val completedBooksCount: Int = 0,
     val appThemeMode: AppThemeMode = AppThemeMode.LIGHT,
+    val snippets: List<TextSnippet> = emptyList(),
     val message: String? = null,
     val errorMessage: String? = null
 )
@@ -70,6 +72,7 @@ class LibraryViewModel(
     init {
         loadSavedTheme()
         loadSavedFolder()
+        loadSnippets()
     }
 
     /**
@@ -215,6 +218,36 @@ class LibraryViewModel(
      */
     fun clearMessage() {
         _uiState.value = _uiState.value.copy(message = null, errorMessage = null)
+    }
+
+    /**
+     * Loads snippets from reading history.
+     */
+    fun loadSnippets() {
+        viewModelScope.launch {
+            val history = readingStateRepository.loadHistory()
+            _uiState.value = _uiState.value.copy(snippets = history.snippets)
+        }
+    }
+
+    /**
+     * Deletes a snippet.
+     */
+    fun deleteSnippet(id: String) {
+        viewModelScope.launch {
+            readingStateRepository.deleteSnippet(id)
+            loadSnippets()
+        }
+    }
+
+    /**
+     * Updates a snippet note.
+     */
+    fun updateSnippetNote(id: String, note: String) {
+        viewModelScope.launch {
+            readingStateRepository.updateSnippetNote(id, note)
+            loadSnippets()
+        }
     }
 
     /**

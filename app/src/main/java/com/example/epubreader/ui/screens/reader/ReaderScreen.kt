@@ -24,6 +24,9 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -77,12 +80,17 @@ fun ReaderScreen(
     onDecreaseFontSize: () -> Unit,
     onToggleBookmark: () -> Unit,
     onDeleteBookmark: (String) -> Unit,
-    onToggleTts: () -> Unit
+    onToggleTts: () -> Unit,
+    onSaveSnippet: (String, String) -> Unit
 ) {
-    var showMenuModal by remember { mutableStateOf(false) }
-    var showSettingsModal by remember { mutableStateOf(false) }
-    var isFullscreen by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    var isFullscreen by remember { mutableStateOf(false) }
+    var showSettingsModal by remember { mutableStateOf(false) }
+    var showMenuModal by remember { mutableStateOf(false) }
+    
+    var selectedSnippetText by remember { mutableStateOf<String?>(null) }
+    var showSaveSnippetDialog by remember { mutableStateOf(false) }
+    var snippetNoteText by remember { mutableStateOf("") }
 
     val isCurrentChapterBookmarked = uiState.bookmarks.any { it.chapterIndex == uiState.currentChapterIndex }
 
@@ -211,9 +219,26 @@ fun ReaderScreen(
             if (loc != null) {
                 onPagePositionUpdated(loc.chapterIndex, loc.pageIndexInChapter)
             }
+            selectedSnippetText = null // Clear selection on page change
         }
 
         Scaffold(
+            floatingActionButton = {
+                AnimatedVisibility(
+                    visible = selectedSnippetText != null && !isFullscreen,
+                    enter = slideInVertically(initialOffsetY = { it * 2 }),
+                    exit = slideOutVertically(targetOffsetY = { it * 2 })
+                ) {
+                    ExtendedFloatingActionButton(
+                        text = { Text("Save Snippet") },
+                        icon = { Icon(Icons.Default.ContentCut, contentDescription = null) },
+                        onClick = {
+                            snippetNoteText = ""
+                            showSaveSnippetDialog = true 
+                        }
+                    )
+                }
+            },
             topBar = {
                 AnimatedVisibility(
                     visible = !isFullscreen,
@@ -391,16 +416,34 @@ fun ReaderScreen(
                         modifier = Modifier.fillMaxSize()
                     ) { pageIndex ->
                         val pageLoc = allBookPages.getOrNull(pageIndex)
+                        var textFieldValue by remember(pageLoc?.text) {
+                            mutableStateOf(TextFieldValue(pageLoc?.text ?: ""))
+                        }
+                        
+                        LaunchedEffect(textFieldValue.selection) {
+                            if (!textFieldValue.selection.collapsed) {
+                                val selected = textFieldValue.annotatedString.substring(textFieldValue.selection.start, textFieldValue.selection.end)
+                                selectedSnippetText = selected
+                            } else {
+                                selectedSnippetText = null
+                            }
+                        }
+
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 24.dp, vertical = 16.dp),
                             contentAlignment = Alignment.TopStart
                         ) {
-                            Text(
-                                text = pageLoc?.text ?: "",
-                                style = textStyle,
-                                color = textColor
+                            BasicTextField(
+                                value = textFieldValue,
+                                onValueChange = { 
+                                    textFieldValue = it.copy(text = pageLoc?.text ?: "") 
+                                },
+                                readOnly = true,
+                                textStyle = textStyle.copy(color = textColor),
+                                cursorBrush = SolidColor(Color.Transparent),
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
                     }
@@ -621,5 +664,48 @@ fun ReaderScreen(
             )
         }
     }
+
+    if (showSaveSnippetDialog && selectedSnippetText != null) {
+        AlertDialog(
+            onDismissRequest = { showSaveSnippetDialog = false },
+            title = { Text("Save Snippet") },
+            text = {
+                Column {
+                    Text(
+                        text = "\"${selectedSnippetText}\"",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 4,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = snippetNoteText,
+                        onValueChange = { snippetNoteText = it },
+                        label = { Text("Note (optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    selectedSnippetText?.let { text ->
+                        onSaveSnippet(text, snippetNoteText)
+                    }
+                    showSaveSnippetDialog = false
+                    selectedSnippetText = null
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSaveSnippetDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
+}
+
 }

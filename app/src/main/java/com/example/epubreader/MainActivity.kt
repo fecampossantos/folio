@@ -119,7 +119,9 @@ class MainActivity : ComponentActivity() {
                     pendingCoverBookUri = book.uri
                     customCoverPickerLauncher.launch("image/*")
                 },
-                onClearMessage = { libraryViewModel.clearMessage() }
+                onClearMessage = { libraryViewModel.clearMessage() },
+                onDeleteSnippet = { id -> libraryViewModel.deleteSnippet(id) },
+                onEditSnippetNote = { id, note -> libraryViewModel.updateSnippetNote(id, note) }
             )
         } else {
             ReaderScreen(
@@ -141,7 +143,8 @@ class MainActivity : ComponentActivity() {
                 onDecreaseFontSize = { readerViewModel.decreaseFontSize() },
                 onToggleBookmark = { readerViewModel.toggleBookmark() },
                 onDeleteBookmark = { id -> readerViewModel.removeBookmark(id) },
-                onToggleTts = { readerViewModel.toggleTts(applicationContext) }
+                onToggleTts = { readerViewModel.toggleTts(applicationContext) },
+                onSaveSnippet = { text, note -> readerViewModel.saveSnippet(text, note) }
             )
         }
     }

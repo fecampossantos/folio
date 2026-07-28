@@ -2,8 +2,10 @@ package com.example.epubreader.data.repository
 
 import android.content.Context
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import com.example.epubreader.data.model.BookState
 import com.example.epubreader.data.model.ReadingHistory
+import com.example.epubreader.data.model.TextSnippet
 import com.example.epubreader.ui.theme.AppThemeMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -53,8 +55,25 @@ class ReadingStateRepository(private val context: Context) {
         ignoreUnknownKeys = true
     }
 
-    private val historyFile: File
-        get() = File(context.filesDir, "reading_history.json")
+    private fun getHistoryDocumentFile(): DocumentFile? {
+        val folderUriString = prefs.getString("selected_folder_uri", null) ?: return null
+        return try {
+            val folderUri = Uri.parse(folderUriString)
+            val rootDoc = DocumentFile.fromTreeUri(context, folderUri) ?: return null
+            var folioDir = rootDoc.findFile(".folio")
+            if (folioDir == null) {
+                folioDir = rootDoc.createDirectory(".folio")
+            }
+            var historyFile = folioDir?.findFile("reading_history.json")
+            if (historyFile == null) {
+                historyFile = folioDir?.createFile("application/json", "reading_history.json")
+            }
+            historyFile
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 
     /**
      * Loads the stored reading history from the JSON file.
@@ -63,17 +82,26 @@ class ReadingStateRepository(private val context: Context) {
      */
     suspend fun loadHistory(): ReadingHistory = withContext(Dispatchers.IO) {
         try {
-            if (!historyFile.exists()) {
-                return@withContext ReadingHistory()
+            val docFile = getHistoryDocumentFile()
+            if (docFile == null || !docFile.exists()) {
+                // Return empty history but preserve the selected folder if known
+                val savedUri = prefs.getString("selected_folder_uri", null)
+                return@withContext ReadingHistory(selectedFolderUri = savedUri)
             }
-            val content = historyFile.readText()
-            if (content.isBlank()) {
-                return@withContext ReadingHistory()
-            }
-            json.decodeFromString<ReadingHistory>(content)
+            context.contentResolver.openInputStream(docFile.uri)?.use { inputStream ->
+                val content = inputStream.bufferedReader().use { it.readText() }
+                if (content.isBlank()) {
+                    val savedUri = prefs.getString("selected_folder_uri", null)
+                    return@withContext ReadingHistory(selectedFolderUri = savedUri)
+                }
+                val history = json.decodeFromString<ReadingHistory>(content)
+                // Ensure the returned history reflects the currently selected folder URI
+                val savedUri = prefs.getString("selected_folder_uri", null)
+                return@withContext history.copy(selectedFolderUri = savedUri)
+            } ?: ReadingHistory(selectedFolderUri = prefs.getString("selected_folder_uri", null))
         } catch (e: Exception) {
             e.printStackTrace()
-            ReadingHistory()
+            ReadingHistory(selectedFolderUri = prefs.getString("selected_folder_uri", null))
         }
     }
 
@@ -84,11 +112,21 @@ class ReadingStateRepository(private val context: Context) {
      */
     suspend fun saveSelectedFolderUri(folderUriString: String) = withContext(Dispatchers.IO) {
         try {
+            prefs.edit().putString("selected_folder_uri", folderUriString).apply()
             val currentHistory = loadHistory()
             val newHistory = currentHistory.copy(selectedFolderUri = folderUriString)
-            historyFile.writeText(json.encodeToString(newHistory))
+            saveHistory(newHistory)
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private suspend fun saveHistory(history: ReadingHistory) = withContext(Dispatchers.IO) {
+        val docFile = getHistoryDocumentFile()
+        if (docFile != null && docFile.exists()) {
+            context.contentResolver.openOutputStream(docFile.uri, "wt")?.use { outputStream ->
+                outputStream.bufferedWriter().use { it.write(json.encodeToString(history)) }
+            }
         }
     }
 
@@ -98,8 +136,7 @@ class ReadingStateRepository(private val context: Context) {
      * @return Folder URI string or null if none saved.
      */
     suspend fun getSelectedFolderUri(): String? = withContext(Dispatchers.IO) {
-        val history = loadHistory()
-        return@withContext history.selectedFolderUri
+        return@withContext prefs.getString("selected_folder_uri", null)
     }
 
     /**
@@ -156,8 +193,7 @@ class ReadingStateRepository(private val context: Context) {
                 books = updatedBooks
             )
 
-            val jsonString = json.encodeToString(newHistory)
-            historyFile.writeText(jsonString)
+            saveHistory(newHistory)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -240,15 +276,50 @@ class ReadingStateRepository(private val context: Context) {
                 version = 1,
                 lastUpdated = timestamp,
                 selectedFolderUri = importedHistory.selectedFolderUri ?: currentHistory.selectedFolderUri,
-                books = mergedBooksMap.values.toList()
+                books = mergedBooksMap.values.toList(),
+                snippets = (currentHistory.snippets + importedHistory.snippets).distinctBy { it.id }
             )
 
-            val jsonString = json.encodeToString(mergedHistory)
-            historyFile.writeText(jsonString)
+            saveHistory(mergedHistory)
             true
         } catch (e: Exception) {
             e.printStackTrace()
             false
+        }
+    }
+
+    suspend fun saveSnippet(snippet: TextSnippet) = withContext(Dispatchers.IO) {
+        try {
+            val currentHistory = loadHistory()
+            val newSnippets = currentHistory.snippets + snippet
+            val newHistory = currentHistory.copy(snippets = newSnippets)
+            saveHistory(newHistory)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun updateSnippetNote(id: String, note: String) = withContext(Dispatchers.IO) {
+        try {
+            val currentHistory = loadHistory()
+            val newSnippets = currentHistory.snippets.map {
+                if (it.id == id) it.copy(note = note) else it
+            }
+            val newHistory = currentHistory.copy(snippets = newSnippets)
+            saveHistory(newHistory)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun deleteSnippet(id: String) = withContext(Dispatchers.IO) {
+        try {
+            val currentHistory = loadHistory()
+            val newSnippets = currentHistory.snippets.filter { it.id != id }
+            val newHistory = currentHistory.copy(snippets = newSnippets)
+            saveHistory(newHistory)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }
