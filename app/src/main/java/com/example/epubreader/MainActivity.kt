@@ -76,7 +76,8 @@ class MainActivity : ComponentActivity() {
         readerViewModel = ReaderViewModel(stateRepository)
 
         setContent {
-            EpubReaderTheme {
+            val libraryState by libraryViewModel.uiState.collectAsState()
+            EpubReaderTheme(appThemeMode = libraryState.appThemeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -102,6 +103,7 @@ class MainActivity : ComponentActivity() {
                 onSelectFolderClick = { launchFolderPicker() },
                 onSearchQueryChanged = { query -> libraryViewModel.onSearchQueryChanged(query) },
                 onSortOptionChanged = { option -> libraryViewModel.onSortOptionChanged(option) },
+                onAppThemeChanged = { mode -> libraryViewModel.onAppThemeChanged(mode) },
                 onExportBackupClick = { exportBackupLauncher.launch("reading_history_backup.json") },
                 onImportBackupClick = { importBackupLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
                 onBookClick = { book ->

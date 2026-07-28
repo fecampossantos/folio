@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
@@ -17,10 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.epubreader.R
 import com.example.epubreader.data.model.BookMetadata
+import com.example.epubreader.ui.theme.AppThemeMode
 import com.example.epubreader.util.CoverManager
 
 /**
@@ -30,6 +36,7 @@ import com.example.epubreader.util.CoverManager
  * @param onSelectFolderClick Callback triggered when user clicks select folder button.
  * @param onSearchQueryChanged Callback triggered when user types in search query bar.
  * @param onSortOptionChanged Callback triggered when user selects a sorting criterion.
+ * @param onAppThemeChanged Callback triggered when user changes app theme mode.
  * @param onExportBackupClick Callback triggered when user chooses to export JSON history.
  * @param onImportBackupClick Callback triggered when user chooses to import JSON history.
  * @param onBookClick Callback triggered when user clicks a book to start reading.
@@ -43,6 +50,7 @@ fun LibraryScreen(
     onSelectFolderClick: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
     onSortOptionChanged: (SortOption) -> Unit,
+    onAppThemeChanged: (AppThemeMode) -> Unit,
     onExportBackupClick: () -> Unit,
     onImportBackupClick: () -> Unit,
     onBookClick: (BookMetadata) -> Unit,
@@ -52,11 +60,24 @@ fun LibraryScreen(
     var showSortMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showStatsDialog by remember { mutableStateOf(false) }
+    var showThemeDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Folio Library", fontWeight = FontWeight.Bold) },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_app_logo),
+                            contentDescription = "Folio Logo",
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Text("Folio Library", fontWeight = FontWeight.Bold)
+                    }
+                },
                 actions = {
                     IconButton(onClick = { showStatsDialog = true }) {
                         Icon(
@@ -116,6 +137,19 @@ fun LibraryScreen(
                         onDismissRequest = { showMoreMenu = false }
                     ) {
                         DropdownMenuItem(
+                            text = { Text("Theme Settings") },
+                            onClick = {
+                                showThemeDialog = true
+                                showMoreMenu = false
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Palette,
+                                    contentDescription = null
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Export History Backup (JSON)") },
                             onClick = {
                                 onExportBackupClick()
@@ -146,6 +180,16 @@ fun LibraryScreen(
             )
         }
     ) { paddingValues ->
+        if (showThemeDialog) {
+            ThemeSettingsDialog(
+                currentMode = uiState.appThemeMode,
+                onThemeSelected = { mode ->
+                    onAppThemeChanged(mode)
+                    showThemeDialog = false
+                },
+                onDismiss = { showThemeDialog = false }
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -573,4 +617,52 @@ fun formatTimeSpan(totalSeconds: Long): String {
     } else {
         String.format("%dm %02ds", minutes, seconds)
     }
+}
+
+/**
+ * Dialog enabling the user to choose between Light, Dark, or Follow System themes.
+ *
+ * @param currentMode Currently active [AppThemeMode].
+ * @param onThemeSelected Callback triggered when user selects a theme option.
+ * @param onDismiss Callback triggered to close dialog.
+ */
+@Composable
+fun ThemeSettingsDialog(
+    currentMode: AppThemeMode,
+    onThemeSelected: (AppThemeMode) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("App Theme") },
+        text = {
+            Column(modifier = Modifier.selectableGroup()) {
+                AppThemeMode.entries.forEach { mode ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .selectable(
+                                selected = (mode == currentMode),
+                                onClick = { onThemeSelected(mode) },
+                                role = Role.RadioButton
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (mode == currentMode),
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(text = mode.label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }
