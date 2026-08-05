@@ -24,6 +24,44 @@ class LibraryRepository(
 ) {
 
     /**
+     * Loads saved book states directly from JSON history cache without reading disk directory tree.
+     *
+     * @param treeUri Content URI representing user selected folder.
+     * @return List of [BookMetadata] instances built from persistent JSON cache.
+     */
+    suspend fun loadCachedBooks(treeUri: Uri): List<BookMetadata> = withContext(Dispatchers.IO) {
+        val history = stateRepository.loadHistory(overrideFolderUri = treeUri.toString())
+        return@withContext history.books.map { savedState ->
+            val fileUri = Uri.parse(savedState.uriString)
+            val lastOpenedFormatted = if (savedState.lastOpenedTimestamp > 0) {
+                formatTimestamp(savedState.lastOpenedTimestamp)
+            } else {
+                "Never opened"
+            }
+            BookMetadata(
+                uri = fileUri,
+                fileName = savedState.fileName,
+                title = savedState.title.takeIf { it.isNotBlank() } ?: savedState.fileName,
+                author = savedState.author.takeIf { it.isNotBlank() } ?: "Unknown Author",
+                coverImagePath = savedState.coverImagePath,
+                lastOpenedFormatted = lastOpenedFormatted,
+                lastOpenedTimestamp = savedState.lastOpenedTimestamp,
+                currentChapterIndex = savedState.currentChapterIndex,
+                currentPageIndex = savedState.currentPageIndex,
+                totalChapters = savedState.totalChapters,
+                progressPercentage = savedState.progressPercentage,
+                bookmarksCount = savedState.bookmarks.size,
+                totalReadingTimeSeconds = savedState.totalReadingTimeSeconds,
+                isCompleted = savedState.isCompleted
+            )
+        }.sortedWith(
+            compareByDescending<BookMetadata> { it.lastOpenedTimestamp }
+                .thenBy { it.title }
+        )
+    }
+
+
+    /**
      * Scans the directory tree at the given SAF [treeUri] for `.epub` files.
      *
      * @param treeUri Content URI representing the user-selected folder.
@@ -31,8 +69,7 @@ class LibraryRepository(
      */
     suspend fun scanFolder(treeUri: Uri): List<BookMetadata> = withContext(Dispatchers.IO) {
         val rootDir = DocumentFile.fromTreeUri(context, treeUri) ?: return@withContext emptyList()
-        val history = stateRepository.loadHistory()
-        val booksMap = history.books.associateBy { it.uriString }
+        val history = stateRepository.loadHistory(overrideFolderUri = treeUri.toString())
 
         val epubFiles = mutableListOf<DocumentFile>()
         findEpubFiles(rootDir, epubFiles)
@@ -43,7 +80,9 @@ class LibraryRepository(
             val uriString = fileUri.toString()
             val fileName = file.name ?: "Unknown.epub"
 
-            val savedState = booksMap[uriString]
+            val savedState = history.books.find {
+                it.uriString == uriString || (fileName.isNotEmpty() && it.fileName == fileName)
+            }
             val (parsedTitle, parsedAuthor) = EpubParser.parseMetadata(context, fileUri, fileName)
 
             val title = savedState?.title?.takeIf { it.isNotBlank() } ?: parsedTitle
@@ -54,7 +93,7 @@ class LibraryRepository(
             if (coverPath.isNullOrEmpty()) {
                 coverPath = CoverManager.extractAndSaveEpubCover(context, fileUri)
                 if (coverPath != null) {
-                    stateRepository.updateBookCoverPath(uriString, coverPath)
+                    stateRepository.updateBookCoverPath(uriString, coverPath, fileName)
                 }
             }
 
