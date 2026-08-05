@@ -370,34 +370,51 @@ fun ReaderScreen(
                 }
                 }
             }
-        ) { paddingValues ->
+) { paddingValues ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
                     .background(backgroundColor)
-                    .pointerInput(allBookPages.size) {
-                        detectTapGestures(
-                            onTap = { offset ->
-                                val width = size.width
-                                val x = offset.x
-                                if (x < width * 0.2f) {
-                                    if (pagerState.currentPage > 0) {
-                                        coroutineScope.launch {
-                                            pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            var downTime = 0L
+                            var downPos = androidx.compose.ui.geometry.Offset.Zero
+                            while (true) {
+                                val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                                if (event.changes.size == 1) {
+                                    val change = event.changes.first()
+                                    if (change.pressed && !change.previousPressed) {
+                                        // Down
+                                        downTime = System.currentTimeMillis()
+                                        downPos = change.position
+                                    } else if (!change.pressed && change.previousPressed) {
+                                        // Up
+                                        val duration = System.currentTimeMillis() - downTime
+                                        val distance = (change.position - downPos).getDistance()
+                                        if (duration < 300 && distance < 30f) {
+                                            val width = size.width
+                                            val x = change.position.x
+                                            if (x < width * 0.2f) {
+                                                if (pagerState.currentPage > 0) {
+                                                    coroutineScope.launch {
+                                                        pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                                                    }
+                                                }
+                                            } else if (x > width * 0.8f) {
+                                                if (pagerState.currentPage < allBookPages.size - 1) {
+                                                    coroutineScope.launch {
+                                                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                                    }
+                                                }
+                                            } else {
+                                                isFullscreen = !isFullscreen
+                                            }
                                         }
                                     }
-                                } else if (x > width * 0.8f) {
-                                    if (pagerState.currentPage < allBookPages.size - 1) {
-                                        coroutineScope.launch {
-                                            pagerState.animateScrollToPage(pagerState.currentPage + 1)
-                                        }
-                                    }
-                                } else {
-                                    isFullscreen = !isFullscreen
                                 }
                             }
-                        )
+                        }
                     }
             ) {
                 if (uiState.isLoading || isPaginating) {

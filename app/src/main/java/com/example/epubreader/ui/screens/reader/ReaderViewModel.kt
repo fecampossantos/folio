@@ -95,7 +95,7 @@ class ReaderViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true)
 
             val parsedEpub = EpubParser.parseEpub(context, bookUri, bookFileName)
-            val savedState = stateRepository.getBookState(bookUri.toString())
+            val savedState = stateRepository.getBookState(bookUri.toString(), bookFileName)
 
             val initialChapter = savedState?.currentChapterIndex?.coerceIn(0, (parsedEpub.chapters.size - 1).coerceAtLeast(0)) ?: 0
             val initialPage = savedState?.currentPageIndex ?: 0

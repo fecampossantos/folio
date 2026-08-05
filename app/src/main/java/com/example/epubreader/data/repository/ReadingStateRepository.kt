@@ -55,8 +55,8 @@ class ReadingStateRepository(private val context: Context) {
         ignoreUnknownKeys = true
     }
 
-    private fun getHistoryDocumentFile(): DocumentFile? {
-        val folderUriString = prefs.getString("selected_folder_uri", null) ?: return null
+    private fun getHistoryDocumentFile(overrideFolderUriString: String? = null): DocumentFile? {
+        val folderUriString = overrideFolderUriString ?: prefs.getString("selected_folder_uri", null) ?: return null
         return try {
             val folderUri = Uri.parse(folderUriString)
             val rootDoc = DocumentFile.fromTreeUri(context, folderUri) ?: return null
@@ -78,30 +78,29 @@ class ReadingStateRepository(private val context: Context) {
     /**
      * Loads the stored reading history from the JSON file.
      *
+     * @param overrideFolderUri Optional SAF folder URI string to override SharedPreferences lookup.
      * @return The parsed [ReadingHistory] instance or a default empty structure if file does not exist.
      */
-    suspend fun loadHistory(): ReadingHistory = withContext(Dispatchers.IO) {
+    suspend fun loadHistory(overrideFolderUri: String? = null): ReadingHistory = withContext(Dispatchers.IO) {
         try {
-            val docFile = getHistoryDocumentFile()
+            val docFile = getHistoryDocumentFile(overrideFolderUri)
             if (docFile == null || !docFile.exists()) {
-                // Return empty history but preserve the selected folder if known
-                val savedUri = prefs.getString("selected_folder_uri", null)
+                val savedUri = overrideFolderUri ?: prefs.getString("selected_folder_uri", null)
                 return@withContext ReadingHistory(selectedFolderUri = savedUri)
             }
             context.contentResolver.openInputStream(docFile.uri)?.use { inputStream ->
                 val content = inputStream.bufferedReader().use { it.readText() }
                 if (content.isBlank()) {
-                    val savedUri = prefs.getString("selected_folder_uri", null)
+                    val savedUri = overrideFolderUri ?: prefs.getString("selected_folder_uri", null)
                     return@withContext ReadingHistory(selectedFolderUri = savedUri)
                 }
                 val history = json.decodeFromString<ReadingHistory>(content)
-                // Ensure the returned history reflects the currently selected folder URI
-                val savedUri = prefs.getString("selected_folder_uri", null)
+                val savedUri = overrideFolderUri ?: prefs.getString("selected_folder_uri", null)
                 return@withContext history.copy(selectedFolderUri = savedUri)
-            } ?: ReadingHistory(selectedFolderUri = prefs.getString("selected_folder_uri", null))
+            } ?: ReadingHistory(selectedFolderUri = overrideFolderUri ?: prefs.getString("selected_folder_uri", null))
         } catch (e: Exception) {
             e.printStackTrace()
-            ReadingHistory(selectedFolderUri = prefs.getString("selected_folder_uri", null))
+            ReadingHistory(selectedFolderUri = overrideFolderUri ?: prefs.getString("selected_folder_uri", null))
         }
     }
 
@@ -112,17 +111,23 @@ class ReadingStateRepository(private val context: Context) {
      */
     suspend fun saveSelectedFolderUri(folderUriString: String) = withContext(Dispatchers.IO) {
         try {
-            prefs.edit().putString("selected_folder_uri", folderUriString).apply()
-            val currentHistory = loadHistory()
+            prefs.edit().putString("selected_folder_uri", folderUriString).commit()
+            val currentHistory = loadHistory(overrideFolderUri = folderUriString)
             val newHistory = currentHistory.copy(selectedFolderUri = folderUriString)
-            saveHistory(newHistory)
+            saveHistory(newHistory, overrideFolderUri = folderUriString)
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    private suspend fun saveHistory(history: ReadingHistory) = withContext(Dispatchers.IO) {
-        val docFile = getHistoryDocumentFile()
+    /**
+     * Saves reading history object to JSON file.
+     *
+     * @param history ReadingHistory instance to write.
+     * @param overrideFolderUri Optional SAF folder URI string.
+     */
+    private suspend fun saveHistory(history: ReadingHistory, overrideFolderUri: String? = null) = withContext(Dispatchers.IO) {
+        val docFile = getHistoryDocumentFile(overrideFolderUri)
         if (docFile != null && docFile.exists()) {
             context.contentResolver.openOutputStream(docFile.uri, "wt")?.use { outputStream ->
                 outputStream.bufferedWriter().use { it.write(json.encodeToString(history)) }
@@ -140,14 +145,17 @@ class ReadingStateRepository(private val context: Context) {
     }
 
     /**
-     * Retrieves the saved book state for a specific EPUB URI string.
+     * Retrieves the saved book state for a specific EPUB URI string or file name.
      *
      * @param uriString Unique URI identifier for the EPUB file.
-     * @return The [BookState] matching the URI, or null if not found.
+     * @param fileName Optional EPUB file name for cross-device matching.
+     * @return The [BookState] matching the URI or file name, or null if not found.
      */
-    suspend fun getBookState(uriString: String): BookState? = withContext(Dispatchers.IO) {
+    suspend fun getBookState(uriString: String, fileName: String? = null): BookState? = withContext(Dispatchers.IO) {
         val history = loadHistory()
-        return@withContext history.books.find { it.uriString == uriString }
+        return@withContext history.books.find {
+            it.uriString == uriString || (fileName != null && fileName.isNotEmpty() && it.fileName == fileName)
+        }
     }
 
     /**
@@ -155,13 +163,14 @@ class ReadingStateRepository(private val context: Context) {
      *
      * @param uriString Unique EPUB URI string.
      * @param coverPath Absolute file path to cover image.
+     * @param fileName Optional file name of the EPUB book.
      */
-    suspend fun updateBookCoverPath(uriString: String, coverPath: String) = withContext(Dispatchers.IO) {
-        val existing = getBookState(uriString)
+    suspend fun updateBookCoverPath(uriString: String, coverPath: String, fileName: String = "") = withContext(Dispatchers.IO) {
+        val existing = getBookState(uriString, fileName)
         if (existing != null) {
-            saveBookState(existing.copy(coverImagePath = coverPath))
+            saveBookState(existing.copy(uriString = uriString, coverImagePath = coverPath))
         } else {
-            saveBookState(BookState(uriString = uriString, fileName = "", coverImagePath = coverPath))
+            saveBookState(BookState(uriString = uriString, fileName = fileName, coverImagePath = coverPath))
         }
     }
 
@@ -174,7 +183,9 @@ class ReadingStateRepository(private val context: Context) {
         try {
             val currentHistory = loadHistory()
             val updatedBooks = currentHistory.books.toMutableList()
-            val existingIndex = updatedBooks.indexOfFirst { it.uriString == state.uriString }
+            val existingIndex = updatedBooks.indexOfFirst {
+                it.uriString == state.uriString || (state.fileName.isNotEmpty() && it.fileName == state.fileName)
+            }
 
             if (existingIndex >= 0) {
                 val currentCover = updatedBooks[existingIndex].coverImagePath
@@ -213,9 +224,11 @@ class ReadingStateRepository(private val context: Context) {
         title: String,
         author: String
     ) = withContext(Dispatchers.IO) {
-        val existing = getBookState(uriString)
+        val existing = getBookState(uriString, fileName)
         val now = System.currentTimeMillis()
         val newState = existing?.copy(
+            uriString = uriString,
+            fileName = if (fileName.isNotBlank()) fileName else existing.fileName,
             lastOpenedTimestamp = now,
             title = if (title.isNotBlank()) title else existing.title,
             author = if (author.isNotBlank()) author else existing.author

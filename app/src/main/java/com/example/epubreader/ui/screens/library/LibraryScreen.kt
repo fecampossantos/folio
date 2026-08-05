@@ -79,6 +79,13 @@ fun LibraryScreen(
                             modifier = Modifier.size(32.dp)
                         )
                         Text("Folio Library", fontWeight = FontWeight.Bold)
+                        if (uiState.isRefreshing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 },
                 actions = {
