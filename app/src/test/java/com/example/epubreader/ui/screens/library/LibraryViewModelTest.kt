@@ -28,6 +28,7 @@ class LibraryViewModelTest {
     fun testLibraryUiStateDefaults() {
         val state = LibraryUiState()
         assertFalse(state.isLoading)
+        assertFalse(state.isRefreshing)
         assertNull(state.selectedFolderUri)
         assertTrue(state.allBooks.isEmpty())
         assertTrue(state.displayedBooks.isEmpty())
@@ -37,6 +38,15 @@ class LibraryViewModelTest {
         assertEquals(0, state.completedBooksCount)
         assertNull(state.message)
         assertNull(state.errorMessage)
+    }
+
+    /**
+     * Tests default value for isRefreshing property in LibraryUiState.
+     */
+    @Test
+    fun testLibraryUiStateIsRefreshingDefault() {
+        val state = LibraryUiState()
+        assertFalse(state.isRefreshing)
     }
 
     /**

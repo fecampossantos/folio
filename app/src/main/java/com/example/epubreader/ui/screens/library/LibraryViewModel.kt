@@ -29,6 +29,7 @@ enum class SortOption(val label: String) {
  * UI State for the Library screen.
  *
  * @property isLoading True if folder is currently being scanned.
+ * @property isRefreshing True if folder is being rescanned in background.
  * @property selectedFolderUri Currently selected SAF folder URI string.
  * @property allBooks List of all discovered EPUB books.
  * @property displayedBooks Filtered and sorted list of books to display.
@@ -42,6 +43,7 @@ enum class SortOption(val label: String) {
  */
 data class LibraryUiState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val selectedFolderUri: String? = null,
     val allBooks: List<BookMetadata> = emptyList(),
     val displayedBooks: List<BookMetadata> = emptyList(),
@@ -94,23 +96,57 @@ class LibraryViewModel(
     }
 
     /**
-     * Loads the previously saved folder URI from persistent storage and scans it automatically on startup.
+     * Loads the previously saved folder URI from persistent storage, renders cached books instantly, and triggers a background folder refresh.
      */
     private fun loadSavedFolder() {
         viewModelScope.launch {
             val savedUriString = readingStateRepository.getSelectedFolderUri()
             if (!savedUriString.isNullOrEmpty()) {
+                val uri = Uri.parse(savedUriString)
+                val cachedBooks = libraryRepository.loadCachedBooks(uri)
+                val totalTime = cachedBooks.sumOf { it.totalReadingTimeSeconds }
+                val completedCount = cachedBooks.count { it.isCompleted || it.progressPercentage >= 99f }
+
                 _uiState.value = _uiState.value.copy(
                     selectedFolderUri = savedUriString,
-                    isLoading = true
+                    isLoading = false,
+                    isRefreshing = true,
+                    allBooks = cachedBooks,
+                    totalReadingTimeSeconds = totalTime,
+                    completedBooksCount = completedCount
                 )
-                try {
-                    val uri = Uri.parse(savedUriString)
-                    refreshBooks(uri)
-                } catch (e: Exception) {
-                    _uiState.value = _uiState.value.copy(isLoading = false)
-                }
+                applyFilterAndSort()
+
+                refreshBooksInBackground(uri)
             }
+        }
+    }
+
+    /**
+     * Rescans books from the selected folder URI in background without clearing existing UI state.
+     *
+     * @param uri Directory tree URI to scan.
+     */
+    private suspend fun refreshBooksInBackground(uri: Uri) {
+        try {
+            val bookList = libraryRepository.scanFolder(uri)
+            val totalTime = bookList.sumOf { it.totalReadingTimeSeconds }
+            val completedCount = bookList.count { it.isCompleted || it.progressPercentage >= 99f }
+
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                isRefreshing = false,
+                allBooks = bookList,
+                totalReadingTimeSeconds = totalTime,
+                completedBooksCount = completedCount
+            )
+            applyFilterAndSort()
+        } catch (e: Exception) {
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                isRefreshing = false,
+                errorMessage = e.localizedMessage ?: "Failed to scan folder"
+            )
         }
     }
 
@@ -128,8 +164,9 @@ class LibraryViewModel(
         )
         viewModelScope.launch {
             readingStateRepository.saveSelectedFolderUri(uriString)
+            refreshBooks(uri)
+            loadSnippets()
         }
-        refreshBooks(uri)
     }
 
     /**
