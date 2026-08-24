@@ -24,6 +24,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
 import com.example.epubreader.R
 import com.example.epubreader.data.model.BookMetadata
 import com.example.epubreader.ui.theme.AppThemeMode
@@ -236,7 +238,13 @@ fun LibraryScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                    placeholder = { Text("Search by title, author, or filename...") },
+                    placeholder = { 
+                        Text(
+                            text = "Search by title, author, or filename...",
+                            fontSize = 11.sp,
+                            color = Color.LightGray
+                        ) 
+                    },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Search,
