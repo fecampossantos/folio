@@ -59,12 +59,17 @@ fun LibraryScreen(
     onChangeCoverClick: (BookMetadata) -> Unit,
     onClearMessage: () -> Unit,
     onDeleteSnippet: (String) -> Unit,
-    onEditSnippetNote: (String, String) -> Unit
+    onEditSnippetNote: (String, String) -> Unit,
+    hardcoverToken: String?,
+    onSaveHardcoverToken: (String) -> Unit,
+    onSyncHardcover: (BookMetadata, Int, Float?) -> Unit
 ) {
     var showSortMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showStatsDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showHardcoverSettings by remember { mutableStateOf(false) }
+    var bookToSync by remember { mutableStateOf<BookMetadata?>(null) }
     var selectedTab by remember { mutableStateOf("Books") }
 
     Scaffold(
@@ -149,6 +154,19 @@ fun LibraryScreen(
                         onDismissRequest = { showMoreMenu = false }
                     ) {
                         DropdownMenuItem(
+                            text = { Text("Hardcover API Settings") },
+                            onClick = {
+                                showHardcoverSettings = true
+                                showMoreMenu = false
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CloudSync,
+                                    contentDescription = null
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Theme Settings") },
                             onClick = {
                                 showThemeDialog = true
@@ -216,6 +234,26 @@ fun LibraryScreen(
                     showThemeDialog = false
                 },
                 onDismiss = { showThemeDialog = false }
+            )
+        }
+        if (showHardcoverSettings) {
+            HardcoverSettingsDialog(
+                initialToken = hardcoverToken,
+                onSaveToken = { token ->
+                    onSaveHardcoverToken(token)
+                    showHardcoverSettings = false
+                },
+                onDismiss = { showHardcoverSettings = false }
+            )
+        }
+        bookToSync?.let { book ->
+            HardcoverSyncDialog(
+                bookTitle = book.title,
+                onSync = { statusId, rating ->
+                    onSyncHardcover(book, statusId, rating)
+                    bookToSync = null
+                },
+                onDismiss = { bookToSync = null }
             )
         }
         Box(
@@ -350,7 +388,8 @@ fun LibraryScreen(
                                     BookItemCard(
                                         book = book,
                                         onClick = { onBookClick(book) },
-                                        onChangeCoverClick = { onChangeCoverClick(book) }
+                                        onChangeCoverClick = { onChangeCoverClick(book) },
+                                        onSyncClick = { bookToSync = book }
                                     )
                                 }
                             }
@@ -486,7 +525,8 @@ fun LibraryScreen(
 fun BookItemCard(
     book: BookMetadata,
     onClick: () -> Unit,
-    onChangeCoverClick: () -> Unit
+    onChangeCoverClick: () -> Unit,
+    onSyncClick: () -> Unit
 ) {
     val bitmap = remember(book.coverImagePath) {
         CoverManager.loadBitmapFromFile(book.coverImagePath)
@@ -608,6 +648,13 @@ fun BookItemCard(
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                IconButton(onClick = onSyncClick) {
+                    Icon(
+                        imageVector = Icons.Default.CloudSync,
+                        contentDescription = "Sync to Hardcover",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Button(onClick = onClick) {
                     Text(if (book.lastOpenedTimestamp > 0L) "Continue" else "Read")
                 }
@@ -679,6 +726,104 @@ fun ThemeSettingsDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Close")
+            }
+        }
+    )
+}
+
+@Composable
+fun HardcoverSettingsDialog(
+    initialToken: String?,
+    onSaveToken: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var token by remember { mutableStateOf(initialToken ?: "") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Hardcover API Settings") },
+        text = {
+            Column {
+                Text("Enter your Hardcover API token:")
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSaveToken(token) }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun HardcoverSyncDialog(
+    bookTitle: String,
+    onSync: (Int, Float?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var statusId by remember { mutableStateOf(2) } // Default: Currently Reading
+    var rating by remember { mutableStateOf<Float?>(null) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sync '${bookTitle}' to Hardcover") },
+        text = {
+            Column {
+                Text("Status:")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = statusId == 1, onClick = { statusId = 1 })
+                    Text("Want to Read", modifier = Modifier.clickable { statusId = 1 })
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = statusId == 2, onClick = { statusId = 2 })
+                    Text("Currently Reading", modifier = Modifier.clickable { statusId = 2 })
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = statusId == 3, onClick = { statusId = 3 })
+                    Text("Read", modifier = Modifier.clickable { statusId = 3 })
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Rating (1-5, Optional):")
+                Row(
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                ) {
+                    for (i in 1..5) {
+                        val isSelected = rating != null && rating!! >= i.toFloat()
+                        Icon(
+                            imageVector = if (isSelected) Icons.Default.Star else Icons.Default.StarOutline,
+                            contentDescription = "Rate $i stars",
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clickable { 
+                                    if (rating == i.toFloat()) rating = null else rating = i.toFloat() 
+                                },
+                            tint = if (isSelected) Color(0xFFFFD700) else Color.Gray
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSync(statusId, rating) }) {
+                Text("Sync")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
     )

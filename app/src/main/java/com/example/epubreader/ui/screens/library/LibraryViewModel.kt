@@ -349,4 +349,68 @@ class LibraryViewModel(
             )
         }
     }
+
+    /**
+     * Gets the stored Hardcover API token.
+     */
+    fun getHardcoverToken(): String? {
+        return readingStateRepository.getHardcoverToken()
+    }
+
+    /**
+     * Saves the Hardcover API token.
+     */
+    fun saveHardcoverToken(token: String) {
+        readingStateRepository.saveHardcoverToken(token)
+        _uiState.value = _uiState.value.copy(message = "Hardcover token saved successfully.")
+    }
+
+    /**
+     * Syncs a book's reading status and rating to Hardcover.
+     *
+     * @param book BookMetadata of the book to sync.
+     * @param statusId Reading status ID (1=Want to Read, 2=Currently Reading, 3=Read).
+     * @param rating Rating (1-5) or null.
+     */
+    fun syncToHardcover(book: BookMetadata, statusId: Int, rating: Float?) {
+        val token = readingStateRepository.getHardcoverToken()
+        if (token.isNullOrBlank()) {
+            _uiState.value = _uiState.value.copy(errorMessage = "Hardcover token not set. Please set it in Settings.")
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            try {
+                val client = com.example.epubreader.data.repository.HardcoverApiClient(token)
+                val bookId = client.searchBookIdByTitle(book.title)
+                if (bookId == null) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = "Could not find '${book.title}' on Hardcover."
+                    )
+                    return@launch
+                }
+
+                val success = client.updateUserBook(bookId, statusId, rating)
+                if (success) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        message = "Successfully synced '${book.title}' to Hardcover!"
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = "Failed to update '${book.title}' on Hardcover."
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "Error connecting to Hardcover: ${e.message}"
+                )
+            }
+        }
+    }
 }

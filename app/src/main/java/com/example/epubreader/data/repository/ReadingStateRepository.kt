@@ -50,6 +50,24 @@ class ReadingStateRepository(private val context: Context) {
         prefs.edit().putString("app_theme_mode", mode.name).apply()
     }
 
+    /**
+     * Gets the saved Hardcover API token.
+     *
+     * @return Hardcover API token string, or null if not set.
+     */
+    fun getHardcoverToken(): String? {
+        return prefs.getString("hardcover_token", null)
+    }
+
+    /**
+     * Saves the Hardcover API token.
+     *
+     * @param token Hardcover API token string to store.
+     */
+    fun saveHardcoverToken(token: String) {
+        prefs.edit().putString("hardcover_token", token).apply()
+    }
+
     private val json = Json {
         prettyPrint = true
         ignoreUnknownKeys = true
