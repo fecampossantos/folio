@@ -14,6 +14,12 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 
+data class HardcoverBook(
+    val id: Int,
+    val title: String,
+    val author: String = "Unknown Author"
+)
+
 /**
  * Client for interacting with the Hardcover GraphQL API.
  */
@@ -24,30 +30,35 @@ class HardcoverApiClient(private val token: String) {
     private val endpoint = "https://api.hardcover.app/v1/graphql"
 
     /**
-     * Searches for a book by its title on Hardcover and returns its ID.
-     * Throws an exception with the error message if something fails or is not found.
+     * Searches for books by title on Hardcover and returns a list of matches.
+     * Throws an exception with the error message if something fails.
      *
-     * @param title Title of the book to search.
-     * @return Hardcover book ID.
+     * @param query Title of the book to search.
+     * @return List of HardcoverBook.
      */
-    suspend fun searchBookIdByTitle(title: String): Int = withContext(Dispatchers.IO) {
-        val query = """
+    suspend fun searchBooks(query: String): List<HardcoverBook> = withContext(Dispatchers.IO) {
+        val graphqlQuery = """
             query searchBooks(${'$'}title: String!) {
-                books(where: {title: {_ilike: ${'$'}title}}, limit: 10) {
+                books(where: {title: {_ilike: ${'$'}title}}, limit: 15, order_by: {users_count: desc}) {
                     id
                     title
+                    contributions {
+                        author {
+                            name
+                        }
+                    }
                 }
             }
         """.trimIndent()
 
-        // Replace non-alphanumeric with % to allow fuzzy matching (e.g., subtitles, punctuation)
-        val fuzzyTitle = "%" + title.replace(Regex("[^a-zA-Z0-9]+"), "%") + "%"
+        // Replace spaces and punctuation with % to allow fuzzy matching
+        val fuzzyTitle = "%" + query.replace(Regex("[^a-zA-Z0-9]+"), "%") + "%"
         val variables = buildJsonObject {
             put("title", fuzzyTitle)
         }
 
         val requestBody = buildJsonObject {
-            put("query", query)
+            put("query", graphqlQuery)
             put("variables", variables)
         }.toString().toRequestBody("application/json".toMediaType())
 
@@ -70,15 +81,28 @@ class HardcoverApiClient(private val token: String) {
             }
 
             val data = root["data"]?.jsonObject
-            val books = data?.get("books")
+            val booksArray = data?.get("books") as? kotlinx.serialization.json.JsonArray ?: return@withContext emptyList()
             
-            if (books is kotlinx.serialization.json.JsonArray && books.isNotEmpty()) {
-                // Find closest match or just first
-                val firstBook = books[0].jsonObject
-                return@withContext firstBook["id"]?.jsonPrimitive?.content?.toIntOrNull()
-                    ?: throw Exception("Invalid book ID format returned.")
+            val result = mutableListOf<HardcoverBook>()
+            for (item in booksArray) {
+                val bookObj = item.jsonObject
+                val id = bookObj["id"]?.jsonPrimitive?.content?.toIntOrNull() ?: continue
+                val title = bookObj["title"]?.jsonPrimitive?.content ?: "Unknown Title"
+                
+                var authorName = "Unknown Author"
+                val contributions = bookObj["contributions"] as? kotlinx.serialization.json.JsonArray
+                if (contributions != null && contributions.isNotEmpty()) {
+                    val firstContrib = contributions[0].jsonObject
+                    val authorObj = firstContrib["author"]?.jsonObject
+                    val name = authorObj?.get("name")?.jsonPrimitive?.content
+                    if (!name.isNullOrBlank()) {
+                        authorName = name
+                    }
+                }
+                
+                result.add(HardcoverBook(id, title, authorName))
             }
-            throw Exception("Book not found in Hardcover database.")
+            return@withContext result
         }
     }
 

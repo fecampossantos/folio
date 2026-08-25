@@ -379,12 +379,16 @@ class LibraryViewModel(
             return
         }
 
+        val bookId = book.hardcoverBookId
+        if (bookId == null) {
+            _uiState.value = _uiState.value.copy(errorMessage = "Book is not linked to Hardcover.")
+            return
+        }
+
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             try {
                 val client = com.example.epubreader.data.repository.HardcoverApiClient(token)
-                val bookId = client.searchBookIdByTitle(book.title)
-                
                 val success = client.updateUserBook(bookId, statusId, rating)
                 if (success) {
                     _uiState.value = _uiState.value.copy(
@@ -404,6 +408,40 @@ class LibraryViewModel(
                     errorMessage = "Error syncing to Hardcover: ${e.message}"
                 )
             }
+        }
+    }
+
+    /**
+     * Searches for books on Hardcover.
+     */
+    suspend fun searchHardcoverBooks(query: String): List<com.example.epubreader.data.repository.HardcoverBook> {
+        val token = readingStateRepository.getHardcoverToken() ?: return emptyList()
+        val client = com.example.epubreader.data.repository.HardcoverApiClient(token)
+        return try {
+            client.searchBooks(query)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    /**
+     * Links a local EPUB to a Hardcover book ID.
+     */
+    fun linkHardcoverBook(book: BookMetadata, hardcoverBookId: Int?) {
+        viewModelScope.launch {
+            readingStateRepository.updateHardcoverBookId(book.uri.toString(), book.fileName, hardcoverBookId)
+            _uiState.value.selectedFolderUri?.let { refreshBooks(Uri.parse(it)) }
+        }
+    }
+
+    /**
+     * Updates the local metadata of a book.
+     */
+    fun updateBookMetadata(book: BookMetadata, newTitle: String, newAuthor: String) {
+        viewModelScope.launch {
+            readingStateRepository.updateBookMetadata(book.uri.toString(), book.fileName, newTitle, newAuthor)
+            _uiState.value.selectedFolderUri?.let { refreshBooks(Uri.parse(it)) }
         }
     }
 }

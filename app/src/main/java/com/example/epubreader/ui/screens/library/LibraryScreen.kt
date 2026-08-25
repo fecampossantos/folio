@@ -30,6 +30,7 @@ import com.example.epubreader.R
 import com.example.epubreader.data.model.BookMetadata
 import com.example.epubreader.ui.theme.AppThemeMode
 import com.example.epubreader.util.CoverManager
+import kotlinx.coroutines.launch
 
 /**
  * Main composable screen displaying the library of EPUB books with search, sorting, statistics, and JSON backup controls.
@@ -62,7 +63,10 @@ fun LibraryScreen(
     onEditSnippetNote: (String, String) -> Unit,
     hardcoverToken: String?,
     onSaveHardcoverToken: (String) -> Unit,
-    onSyncHardcover: (BookMetadata, Int, Float?) -> Unit
+    onSyncHardcover: (BookMetadata, Int, Float?) -> Unit,
+    onUpdateMetadata: (BookMetadata, String, String) -> Unit,
+    onLinkHardcover: (BookMetadata, Int?) -> Unit,
+    searchHardcoverBooks: suspend (String) -> List<com.example.epubreader.data.repository.HardcoverBook>
 ) {
     var showSortMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
@@ -70,6 +74,8 @@ fun LibraryScreen(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showHardcoverSettings by remember { mutableStateOf(false) }
     var bookToSync by remember { mutableStateOf<BookMetadata?>(null) }
+    var bookToLink by remember { mutableStateOf<BookMetadata?>(null) }
+    var bookToEditMetadata by remember { mutableStateOf<BookMetadata?>(null) }
     var selectedTab by remember { mutableStateOf("Books") }
 
     Scaffold(
@@ -256,6 +262,29 @@ fun LibraryScreen(
                 onDismiss = { bookToSync = null }
             )
         }
+        bookToLink?.let { book ->
+            HardcoverLinkDialog(
+                initialQuery = book.title,
+                onSearch = searchHardcoverBooks,
+                onLink = { id ->
+                    onLinkHardcover(book, id)
+                    bookToLink = null
+                    // After linking, immediately prompt for sync
+                    bookToSync = book.copy(hardcoverBookId = id)
+                },
+                onDismiss = { bookToLink = null }
+            )
+        }
+        bookToEditMetadata?.let { book ->
+            EditMetadataDialog(
+                book = book,
+                onSave = { newTitle, newAuthor ->
+                    onUpdateMetadata(book, newTitle, newAuthor)
+                    bookToEditMetadata = null
+                },
+                onDismiss = { bookToEditMetadata = null }
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -389,7 +418,14 @@ fun LibraryScreen(
                                         book = book,
                                         onClick = { onBookClick(book) },
                                         onChangeCoverClick = { onChangeCoverClick(book) },
-                                        onSyncClick = { bookToSync = book }
+                                        onSyncClick = { 
+                                            if (book.hardcoverBookId != null) {
+                                                bookToSync = book
+                                            } else {
+                                                bookToLink = book
+                                            }
+                                        },
+                                        onEditMetadataClick = { bookToEditMetadata = book }
                                     )
                                 }
                             }
@@ -526,7 +562,8 @@ fun BookItemCard(
     book: BookMetadata,
     onClick: () -> Unit,
     onChangeCoverClick: () -> Unit,
-    onSyncClick: () -> Unit
+    onSyncClick: () -> Unit,
+    onEditMetadataClick: () -> Unit
 ) {
     val bitmap = remember(book.coverImagePath) {
         CoverManager.loadBitmapFromFile(book.coverImagePath)
@@ -660,6 +697,9 @@ fun BookItemCard(
                 }
                 TextButton(onClick = onChangeCoverClick) {
                     Text(if (bitmap != null) "Edit Cover" else "+ Cover", style = MaterialTheme.typography.labelSmall)
+                }
+                TextButton(onClick = onEditMetadataClick) {
+                    Text("Edit Info", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -822,6 +862,126 @@ fun HardcoverSyncDialog(
             }
         },
         dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun EditMetadataDialog(
+    book: BookMetadata,
+    onSave: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var title by remember { mutableStateOf(book.title) }
+    var author by remember { mutableStateOf(book.author) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Metadata") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Title") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = author,
+                    onValueChange = { author = it },
+                    label = { Text("Author") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSave(title, author) }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun HardcoverLinkDialog(
+    initialQuery: String,
+    onSearch: suspend (String) -> List<com.example.epubreader.data.repository.HardcoverBook>,
+    onLink: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var query by remember { mutableStateOf(initialQuery) }
+    var results by remember { mutableStateOf<List<com.example.epubreader.data.repository.HardcoverBook>?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(initialQuery) {
+        isLoading = true
+        results = onSearch(initialQuery)
+        isLoading = false
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Link to Hardcover") },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 400.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        placeholder = { Text("Search title...") }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(onClick = {
+                        scope.launch {
+                            isLoading = true
+                            results = onSearch(query)
+                            isLoading = false
+                        }
+                    }) {
+                        Icon(imageVector = Icons.Default.Search, contentDescription = "Search")
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                } else if (results != null) {
+                    if (results!!.isEmpty()) {
+                        Text("No books found.")
+                    } else {
+                        androidx.compose.foundation.lazy.LazyColumn {
+                            items(results!!) { book ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onLink(book.id) }
+                                        .padding(vertical = 8.dp)
+                                ) {
+                                    Text(book.title, style = MaterialTheme.typography.bodyLarge)
+                                    Text(book.author, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                                }
+                                androidx.compose.material3.Divider()
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }
