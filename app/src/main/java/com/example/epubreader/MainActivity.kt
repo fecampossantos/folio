@@ -121,7 +121,13 @@ class MainActivity : ComponentActivity() {
                 },
                 onClearMessage = { libraryViewModel.clearMessage() },
                 onDeleteSnippet = { id -> libraryViewModel.deleteSnippet(id) },
-                onEditSnippetNote = { id, note -> libraryViewModel.updateSnippetNote(id, note) }
+                onEditSnippetNote = { id, note -> libraryViewModel.updateSnippetNote(id, note) },
+                hardcoverToken = libraryViewModel.getHardcoverToken(),
+                onSaveHardcoverToken = { token -> libraryViewModel.saveHardcoverToken(token) },
+                onSyncHardcover = { book, statusId, rating -> libraryViewModel.syncToHardcover(book, statusId, rating) },
+                onUpdateMetadata = { book, title, author -> libraryViewModel.updateBookMetadata(book, title, author) },
+                onLinkHardcover = { book, hardcoverBookId -> libraryViewModel.linkHardcoverBook(book, hardcoverBookId) },
+                searchHardcoverBooks = { query -> libraryViewModel.searchHardcoverBooks(query) }
             )
         } else {
             ReaderScreen(

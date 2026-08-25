@@ -30,6 +30,7 @@ import com.example.epubreader.R
 import com.example.epubreader.data.model.BookMetadata
 import com.example.epubreader.ui.theme.AppThemeMode
 import com.example.epubreader.util.CoverManager
+import kotlinx.coroutines.launch
 
 /**
  * Main composable screen displaying the library of EPUB books with search, sorting, statistics, and JSON backup controls.
@@ -59,12 +60,22 @@ fun LibraryScreen(
     onChangeCoverClick: (BookMetadata) -> Unit,
     onClearMessage: () -> Unit,
     onDeleteSnippet: (String) -> Unit,
-    onEditSnippetNote: (String, String) -> Unit
+    onEditSnippetNote: (String, String) -> Unit,
+    hardcoverToken: String?,
+    onSaveHardcoverToken: (String) -> Unit,
+    onSyncHardcover: (BookMetadata, Int, Float?) -> Unit,
+    onUpdateMetadata: (BookMetadata, String, String) -> Unit,
+    onLinkHardcover: (BookMetadata, Int?) -> Unit,
+    searchHardcoverBooks: suspend (String) -> List<com.example.epubreader.data.repository.HardcoverBook>
 ) {
     var showSortMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showStatsDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showHardcoverSettings by remember { mutableStateOf(false) }
+    var bookToSync by remember { mutableStateOf<BookMetadata?>(null) }
+    var bookToLink by remember { mutableStateOf<BookMetadata?>(null) }
+    var bookToEditMetadata by remember { mutableStateOf<BookMetadata?>(null) }
     var selectedTab by remember { mutableStateOf("Books") }
 
     Scaffold(
@@ -149,6 +160,19 @@ fun LibraryScreen(
                         onDismissRequest = { showMoreMenu = false }
                     ) {
                         DropdownMenuItem(
+                            text = { Text("Hardcover API Settings") },
+                            onClick = {
+                                showHardcoverSettings = true
+                                showMoreMenu = false
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CloudSync,
+                                    contentDescription = null
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Theme Settings") },
                             onClick = {
                                 showThemeDialog = true
@@ -216,6 +240,49 @@ fun LibraryScreen(
                     showThemeDialog = false
                 },
                 onDismiss = { showThemeDialog = false }
+            )
+        }
+        if (showHardcoverSettings) {
+            HardcoverSettingsDialog(
+                initialToken = hardcoverToken,
+                onSaveToken = { token ->
+                    onSaveHardcoverToken(token)
+                    showHardcoverSettings = false
+                },
+                onDismiss = { showHardcoverSettings = false }
+            )
+        }
+        bookToSync?.let { book ->
+            HardcoverSyncDialog(
+                bookTitle = book.title,
+                onSync = { statusId, rating ->
+                    onSyncHardcover(book, statusId, rating)
+                    bookToSync = null
+                },
+                onDismiss = { bookToSync = null }
+            )
+        }
+        bookToLink?.let { book ->
+            HardcoverLinkDialog(
+                initialQuery = book.title,
+                onSearch = searchHardcoverBooks,
+                onLink = { id ->
+                    onLinkHardcover(book, id)
+                    bookToLink = null
+                    // After linking, immediately prompt for sync
+                    bookToSync = book.copy(hardcoverBookId = id)
+                },
+                onDismiss = { bookToLink = null }
+            )
+        }
+        bookToEditMetadata?.let { book ->
+            EditMetadataDialog(
+                book = book,
+                onSave = { newTitle, newAuthor ->
+                    onUpdateMetadata(book, newTitle, newAuthor)
+                    bookToEditMetadata = null
+                },
+                onDismiss = { bookToEditMetadata = null }
             )
         }
         Box(
@@ -350,7 +417,15 @@ fun LibraryScreen(
                                     BookItemCard(
                                         book = book,
                                         onClick = { onBookClick(book) },
-                                        onChangeCoverClick = { onChangeCoverClick(book) }
+                                        onChangeCoverClick = { onChangeCoverClick(book) },
+                                        onSyncClick = { 
+                                            if (book.hardcoverBookId != null) {
+                                                bookToSync = book
+                                            } else {
+                                                bookToLink = book
+                                            }
+                                        },
+                                        onEditMetadataClick = { bookToEditMetadata = book }
                                     )
                                 }
                             }
@@ -486,7 +561,9 @@ fun LibraryScreen(
 fun BookItemCard(
     book: BookMetadata,
     onClick: () -> Unit,
-    onChangeCoverClick: () -> Unit
+    onChangeCoverClick: () -> Unit,
+    onSyncClick: () -> Unit,
+    onEditMetadataClick: () -> Unit
 ) {
     val bitmap = remember(book.coverImagePath) {
         CoverManager.loadBitmapFromFile(book.coverImagePath)
@@ -608,11 +685,21 @@ fun BookItemCard(
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                IconButton(onClick = onSyncClick) {
+                    Icon(
+                        imageVector = Icons.Default.CloudSync,
+                        contentDescription = "Sync to Hardcover",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Button(onClick = onClick) {
                     Text(if (book.lastOpenedTimestamp > 0L) "Continue" else "Read")
                 }
                 TextButton(onClick = onChangeCoverClick) {
                     Text(if (bitmap != null) "Edit Cover" else "+ Cover", style = MaterialTheme.typography.labelSmall)
+                }
+                TextButton(onClick = onEditMetadataClick) {
+                    Text("Edit Info", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -679,6 +766,224 @@ fun ThemeSettingsDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Close")
+            }
+        }
+    )
+}
+
+@Composable
+fun HardcoverSettingsDialog(
+    initialToken: String?,
+    onSaveToken: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var token by remember { mutableStateOf(initialToken ?: "") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Hardcover API Settings") },
+        text = {
+            Column {
+                Text("Enter your Hardcover API token:")
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSaveToken(token) }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun HardcoverSyncDialog(
+    bookTitle: String,
+    onSync: (Int, Float?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var statusId by remember { mutableStateOf(2) } // Default: Currently Reading
+    var rating by remember { mutableStateOf<Float?>(null) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sync '${bookTitle}' to Hardcover") },
+        text = {
+            Column {
+                Text("Status:")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = statusId == 1, onClick = { statusId = 1 })
+                    Text("Want to Read", modifier = Modifier.clickable { statusId = 1 })
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = statusId == 2, onClick = { statusId = 2 })
+                    Text("Currently Reading", modifier = Modifier.clickable { statusId = 2 })
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = statusId == 3, onClick = { statusId = 3 })
+                    Text("Read", modifier = Modifier.clickable { statusId = 3 })
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Rating (1-5, Optional):")
+                Row(
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                ) {
+                    for (i in 1..5) {
+                        val isSelected = rating != null && rating!! >= i.toFloat()
+                        Icon(
+                            imageVector = if (isSelected) Icons.Default.Star else Icons.Default.StarOutline,
+                            contentDescription = "Rate $i stars",
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clickable { 
+                                    if (rating == i.toFloat()) rating = null else rating = i.toFloat() 
+                                },
+                            tint = if (isSelected) Color(0xFFFFD700) else Color.Gray
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSync(statusId, rating) }) {
+                Text("Sync")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun EditMetadataDialog(
+    book: BookMetadata,
+    onSave: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var title by remember { mutableStateOf(book.title) }
+    var author by remember { mutableStateOf(book.author) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Metadata") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Title") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = author,
+                    onValueChange = { author = it },
+                    label = { Text("Author") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSave(title, author) }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun HardcoverLinkDialog(
+    initialQuery: String,
+    onSearch: suspend (String) -> List<com.example.epubreader.data.repository.HardcoverBook>,
+    onLink: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var query by remember { mutableStateOf(initialQuery) }
+    var results by remember { mutableStateOf<List<com.example.epubreader.data.repository.HardcoverBook>?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(initialQuery) {
+        isLoading = true
+        results = onSearch(initialQuery)
+        isLoading = false
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Link to Hardcover") },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 400.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        placeholder = { Text("Search title...") }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(onClick = {
+                        scope.launch {
+                            isLoading = true
+                            results = onSearch(query)
+                            isLoading = false
+                        }
+                    }) {
+                        Icon(imageVector = Icons.Default.Search, contentDescription = "Search")
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                } else if (results != null) {
+                    if (results!!.isEmpty()) {
+                        Text("No books found.")
+                    } else {
+                        androidx.compose.foundation.lazy.LazyColumn {
+                            items(results!!) { book ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onLink(book.id) }
+                                        .padding(vertical = 8.dp)
+                                ) {
+                                    Text(book.title, style = MaterialTheme.typography.bodyLarge)
+                                    Text(book.author, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                                }
+                                androidx.compose.material3.Divider()
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
     )

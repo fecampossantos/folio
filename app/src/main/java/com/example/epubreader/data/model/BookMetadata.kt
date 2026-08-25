@@ -34,5 +34,6 @@ data class BookMetadata(
     val progressPercentage: Float = 0f,
     val bookmarksCount: Int = 0,
     val totalReadingTimeSeconds: Long = 0L,
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val hardcoverBookId: Int? = null
 )

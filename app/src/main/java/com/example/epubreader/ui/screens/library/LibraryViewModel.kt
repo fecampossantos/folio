@@ -349,4 +349,99 @@ class LibraryViewModel(
             )
         }
     }
+
+    /**
+     * Gets the stored Hardcover API token.
+     */
+    fun getHardcoverToken(): String? {
+        return readingStateRepository.getHardcoverToken()
+    }
+
+    /**
+     * Saves the Hardcover API token.
+     */
+    fun saveHardcoverToken(token: String) {
+        readingStateRepository.saveHardcoverToken(token)
+        _uiState.value = _uiState.value.copy(message = "Hardcover token saved successfully.")
+    }
+
+    /**
+     * Syncs a book's reading status and rating to Hardcover.
+     *
+     * @param book BookMetadata of the book to sync.
+     * @param statusId Reading status ID (1=Want to Read, 2=Currently Reading, 3=Read).
+     * @param rating Rating (1-5) or null.
+     */
+    fun syncToHardcover(book: BookMetadata, statusId: Int, rating: Float?) {
+        val token = readingStateRepository.getHardcoverToken()
+        if (token.isNullOrBlank()) {
+            _uiState.value = _uiState.value.copy(errorMessage = "Hardcover token not set. Please set it in Settings.")
+            return
+        }
+
+        val bookId = book.hardcoverBookId
+        if (bookId == null) {
+            _uiState.value = _uiState.value.copy(errorMessage = "Book is not linked to Hardcover.")
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            try {
+                val client = com.example.epubreader.data.repository.HardcoverApiClient(token)
+                val success = client.updateUserBook(bookId, statusId, rating)
+                if (success) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        message = "Successfully synced '${book.title}' to Hardcover!"
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = "Failed to update '${book.title}' on Hardcover."
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "Error syncing to Hardcover: ${e.message}"
+                )
+            }
+        }
+    }
+
+    /**
+     * Searches for books on Hardcover.
+     */
+    suspend fun searchHardcoverBooks(query: String): List<com.example.epubreader.data.repository.HardcoverBook> {
+        val token = readingStateRepository.getHardcoverToken() ?: return emptyList()
+        val client = com.example.epubreader.data.repository.HardcoverApiClient(token)
+        return try {
+            client.searchBooks(query)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    /**
+     * Links a local EPUB to a Hardcover book ID.
+     */
+    fun linkHardcoverBook(book: BookMetadata, hardcoverBookId: Int?) {
+        viewModelScope.launch {
+            readingStateRepository.updateHardcoverBookId(book.uri.toString(), book.fileName, hardcoverBookId)
+            _uiState.value.selectedFolderUri?.let { refreshBooks(Uri.parse(it)) }
+        }
+    }
+
+    /**
+     * Updates the local metadata of a book.
+     */
+    fun updateBookMetadata(book: BookMetadata, newTitle: String, newAuthor: String) {
+        viewModelScope.launch {
+            readingStateRepository.updateBookMetadata(book.uri.toString(), book.fileName, newTitle, newAuthor)
+            _uiState.value.selectedFolderUri?.let { refreshBooks(Uri.parse(it)) }
+        }
+    }
 }
