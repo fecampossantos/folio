@@ -24,23 +24,26 @@ class HardcoverApiClient(private val token: String) {
     private val endpoint = "https://api.hardcover.app/v1/graphql"
 
     /**
-     * Searches for a book by its title on Hardcover and returns its ID if found.
+     * Searches for a book by its title on Hardcover and returns its ID.
+     * Throws an exception with the error message if something fails or is not found.
      *
      * @param title Title of the book to search.
-     * @return Hardcover book ID, or null if not found or on error.
+     * @return Hardcover book ID.
      */
-    suspend fun searchBookIdByTitle(title: String): Int? = withContext(Dispatchers.IO) {
+    suspend fun searchBookIdByTitle(title: String): Int = withContext(Dispatchers.IO) {
         val query = """
             query searchBooks(${'$'}title: String!) {
-                books(where: {title: {_ilike: ${'$'}title}}, limit: 1) {
+                books(where: {title: {_ilike: ${'$'}title}}, limit: 10) {
                     id
                     title
                 }
             }
         """.trimIndent()
 
+        // Replace non-alphanumeric with % to allow fuzzy matching (e.g., subtitles, punctuation)
+        val fuzzyTitle = "%" + title.replace(Regex("[^a-zA-Z0-9]+"), "%") + "%"
         val variables = buildJsonObject {
-            put("title", "%${title}%")
+            put("title", fuzzyTitle)
         }
 
         val requestBody = buildJsonObject {
@@ -54,25 +57,28 @@ class HardcoverApiClient(private val token: String) {
             .post(requestBody)
             .build()
 
-        try {
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext null
-                val bodyStr = response.body?.string() ?: return@withContext null
-                
-                // Parse response JSON: { "data": { "books": [ { "id": 1234, ... } ] } }
-                val root = json.parseToJsonElement(bodyStr).jsonObject
-                val data = root["data"]?.jsonObject
-                val books = data?.get("books")
-                
-                if (books is kotlinx.serialization.json.JsonArray && books.isNotEmpty()) {
-                    val firstBook = books[0].jsonObject
-                    return@withContext firstBook["id"]?.jsonPrimitive?.content?.toIntOrNull()
-                }
-                return@withContext null
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw Exception("HTTP ${response.code}: ${response.message}")
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext null
+            val bodyStr = response.body?.string() ?: throw Exception("Empty response body")
+            
+            val root = json.parseToJsonElement(bodyStr).jsonObject
+            if (root.containsKey("errors")) {
+                val errors = root["errors"]?.toString()
+                throw Exception("GraphQL Error: $errors")
+            }
+
+            val data = root["data"]?.jsonObject
+            val books = data?.get("books")
+            
+            if (books is kotlinx.serialization.json.JsonArray && books.isNotEmpty()) {
+                // Find closest match or just first
+                val firstBook = books[0].jsonObject
+                return@withContext firstBook["id"]?.jsonPrimitive?.content?.toIntOrNull()
+                    ?: throw Exception("Invalid book ID format returned.")
+            }
+            throw Exception("Book not found in Hardcover database.")
         }
     }
 

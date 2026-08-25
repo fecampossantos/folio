@@ -384,14 +384,7 @@ class LibraryViewModel(
             try {
                 val client = com.example.epubreader.data.repository.HardcoverApiClient(token)
                 val bookId = client.searchBookIdByTitle(book.title)
-                if (bookId == null) {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        errorMessage = "Could not find '${book.title}' on Hardcover."
-                    )
-                    return@launch
-                }
-
+                
                 val success = client.updateUserBook(bookId, statusId, rating)
                 if (success) {
                     _uiState.value = _uiState.value.copy(
@@ -408,7 +401,7 @@ class LibraryViewModel(
                 e.printStackTrace()
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    errorMessage = "Error connecting to Hardcover: ${e.message}"
+                    errorMessage = "Error syncing to Hardcover: ${e.message}"
                 )
             }
         }
