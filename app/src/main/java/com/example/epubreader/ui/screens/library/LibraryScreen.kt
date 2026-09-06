@@ -58,6 +58,7 @@ fun LibraryScreen(
     onBookClick: (BookMetadata) -> Unit,
     onChangeCoverClick: (BookMetadata) -> Unit,
     onClearMessage: () -> Unit,
+    onRescanClick: () -> Unit,
     onDeleteSnippet: (String) -> Unit,
     onEditSnippetNote: (String, String) -> Unit
 ) {
@@ -148,6 +149,19 @@ fun LibraryScreen(
                         expanded = showMoreMenu,
                         onDismissRequest = { showMoreMenu = false }
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("Rescan Folder") },
+                            onClick = {
+                                onRescanClick()
+                                showMoreMenu = false
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null
+                                )
+                            }
+                        )
                         DropdownMenuItem(
                             text = { Text("Theme Settings") },
                             onClick = {
