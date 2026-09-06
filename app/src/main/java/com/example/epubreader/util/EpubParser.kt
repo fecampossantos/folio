@@ -2,6 +2,7 @@ package com.example.epubreader.util
 
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.VisibleForTesting
 import java.io.InputStream
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
@@ -268,8 +269,12 @@ object EpubParser {
      * @param html Raw HTML/XHTML content.
      * @return Plain text content with preserved paragraph line breaks.
      */
-    private fun stripHtmlTags(html: String): String {
+    @VisibleForTesting
+    internal fun stripHtmlTags(html: String): String {
         return html
+            .replace(Regex("<head[^>]*>.*?</head>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)), "")
+            .replace(Regex("<style[^>]*>.*?</style>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)), "")
+            .replace(Regex("<script[^>]*>.*?</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)), "")
             .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
             .replace(Regex("</p>", RegexOption.IGNORE_CASE), "\n\n")
             .replace(Regex("<[^>]*>"), "")
