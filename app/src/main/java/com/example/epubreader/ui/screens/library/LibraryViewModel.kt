@@ -110,43 +110,13 @@ class LibraryViewModel(
                 _uiState.value = _uiState.value.copy(
                     selectedFolderUri = savedUriString,
                     isLoading = false,
-                    isRefreshing = true,
+                    isRefreshing = false,
                     allBooks = cachedBooks,
                     totalReadingTimeSeconds = totalTime,
                     completedBooksCount = completedCount
                 )
                 applyFilterAndSort()
-
-                refreshBooksInBackground(uri)
             }
-        }
-    }
-
-    /**
-     * Rescans books from the selected folder URI in background without clearing existing UI state.
-     *
-     * @param uri Directory tree URI to scan.
-     */
-    private suspend fun refreshBooksInBackground(uri: Uri) {
-        try {
-            val bookList = libraryRepository.scanFolder(uri)
-            val totalTime = bookList.sumOf { it.totalReadingTimeSeconds }
-            val completedCount = bookList.count { it.isCompleted || it.progressPercentage >= 99f }
-
-            _uiState.value = _uiState.value.copy(
-                isLoading = false,
-                isRefreshing = false,
-                allBooks = bookList,
-                totalReadingTimeSeconds = totalTime,
-                completedBooksCount = completedCount
-            )
-            applyFilterAndSort()
-        } catch (e: Exception) {
-            _uiState.value = _uiState.value.copy(
-                isLoading = false,
-                isRefreshing = false,
-                errorMessage = e.localizedMessage ?: "Failed to scan folder"
-            )
         }
     }
 

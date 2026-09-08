@@ -120,6 +120,11 @@ class MainActivity : ComponentActivity() {
                     customCoverPickerLauncher.launch("image/*")
                 },
                 onClearMessage = { libraryViewModel.clearMessage() },
+                onRescanClick = {
+                    libraryState.selectedFolderUri?.let {
+                        libraryViewModel.refreshBooks(Uri.parse(it))
+                    }
+                },
                 onDeleteSnippet = { id -> libraryViewModel.deleteSnippet(id) },
                 onEditSnippetNote = { id, note -> libraryViewModel.updateSnippetNote(id, note) }
             )
