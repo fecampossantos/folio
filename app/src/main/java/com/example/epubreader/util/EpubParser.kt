@@ -269,9 +269,16 @@ object EpubParser {
      * @return Plain text content with preserved paragraph line breaks.
      */
     private fun stripHtmlTags(html: String): String {
-        return html
+        val bodyMatch = Regex("<body[^>]*>(.*?)</body>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)).find(html)
+        val content = bodyMatch?.groupValues?.get(1) ?: html
+
+        return content
+            .replace(Regex("<script[^>]*>.*?</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)), "")
+            .replace(Regex("<style[^>]*>.*?</style>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)), "")
             .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
+            .replace(Regex("</h[1-6]>", RegexOption.IGNORE_CASE), "\n\n")
             .replace(Regex("</p>", RegexOption.IGNORE_CASE), "\n\n")
+            .replace(Regex("</div[^>]*>", RegexOption.IGNORE_CASE), "\n")
             .replace(Regex("<[^>]*>"), "")
             .replace("&nbsp;", " ")
             .replace("&amp;", "&")
@@ -279,6 +286,8 @@ object EpubParser {
             .replace("&gt;", ">")
             .replace("&quot;", "\"")
             .replace("&#39;", "'")
+            .replace(Regex("^[ \\t]+", RegexOption.MULTILINE), "")
+            .replace(Regex("[ \\t]+$", RegexOption.MULTILINE), "")
             .replace(Regex("\n{3,}"), "\n\n")
             .trim()
     }
