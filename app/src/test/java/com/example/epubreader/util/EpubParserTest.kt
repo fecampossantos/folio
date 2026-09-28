@@ -66,4 +66,33 @@ class EpubParserTest {
         assertEquals(1, parsedEpub.chapters.size)
         assertEquals("Chapter 1", parsedEpub.chapters[0].title)
     }
+
+    /**
+     * Tests that [EpubParser] strips out HTML tags along with the contents of `<head>`, `<style>`, and `<script>` blocks.
+     */
+    @Test
+    fun testStripHtmlTags() {
+        val html = """
+            <html>
+            <head>
+                <title>My Book Title</title>
+                <style type="text/css">
+                    @style { color: red; }
+                    body { margin: 0; }
+                </style>
+            </head>
+            <body>
+                <p>Hello world.</p>
+                <script>alert('test')</script>
+            </body>
+            </html>
+        """.trimIndent()
+
+        val clean = EpubParser.stripHtmlTags(html)
+
+        assertFalse("Title should be removed", clean.contains("My Book Title"))
+        assertFalse("@style should be removed", clean.contains("@style"))
+        assertFalse("script should be removed", clean.contains("alert"))
+        assertTrue("Content should be kept", clean.contains("Hello world."))
+    }
 }

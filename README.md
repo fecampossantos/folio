@@ -105,9 +105,28 @@ $env:ANDROID_HOME="$env:LOCALAPPDATA\Android\Sdk"
 
 ---
 
-## Cross-Device Synchronization with Syncthing
+## Cross-Device Synchronization
 
-You can pair Folio with **[Syncthing](https://syncthing.net/)** to sync your book library and reading history across Android devices, PCs, or NAS servers:
+You can sync your book library and reading history across Android devices, PCs, or NAS servers using various methods:
+
+### Using GitHub
+
+You can use GitHub to sync your library and reading history using a Git client for Android (like Termux or MGit) and a GitHub repository:
+
+1. **Setup Repository**:
+   - Create a private repository on GitHub to store your books.
+   - Clone the repository to a local folder on your devices using a Git client.
+2. **Sync Books Folder**:
+   - Place your EPUB files in the cloned folder and commit/push them to GitHub.
+   - Pull the changes on your other devices.
+3. **Sync Reading State**:
+   - In Folio on Device A, tap the overflow menu (`⋮`) -> **Export History Backup (JSON)** and save `reading_history_backup.json` in your Git folder.
+   - Commit and push the changes to GitHub.
+   - On Device B, pull the latest changes, tap the overflow menu (`⋮`) -> **Import History Backup (JSON)** to instantly restore your exact reading position.
+
+### Using Syncthing
+
+You can pair Folio with **[Syncthing](https://syncthing.net/)** to sync your book library and reading history:
 
 1. **Sync Books Folder**:
    - Share your EPUB directory across devices using Syncthing.

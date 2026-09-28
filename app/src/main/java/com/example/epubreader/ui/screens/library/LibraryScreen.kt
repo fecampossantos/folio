@@ -59,6 +59,7 @@ fun LibraryScreen(
     onBookClick: (BookMetadata) -> Unit,
     onChangeCoverClick: (BookMetadata) -> Unit,
     onClearMessage: () -> Unit,
+    onRescanClick: () -> Unit,
     onDeleteSnippet: (String) -> Unit,
     onEditSnippetNote: (String, String) -> Unit,
     hardcoverToken: String?,
@@ -168,6 +169,18 @@ fun LibraryScreen(
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.CloudSync,
+                                    contentDescription = null
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Rescan Folder") },,
+                            onClick = {
+                                onRescanClick()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
                                     contentDescription = null
                                 )
                             }
