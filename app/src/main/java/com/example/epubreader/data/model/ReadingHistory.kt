@@ -92,5 +92,6 @@ data class BookState(
     val fontSizeSp: Int = 18,
     val bookmarks: List<Bookmark> = emptyList(),
     val totalReadingTimeSeconds: Long = 0L,
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val hardcoverBookId: Int? = null
 )

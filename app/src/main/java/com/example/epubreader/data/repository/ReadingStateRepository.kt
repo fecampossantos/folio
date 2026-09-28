@@ -50,6 +50,24 @@ class ReadingStateRepository(private val context: Context) {
         prefs.edit().putString("app_theme_mode", mode.name).apply()
     }
 
+    /**
+     * Gets the saved Hardcover API token.
+     *
+     * @return Hardcover API token string, or null if not set.
+     */
+    fun getHardcoverToken(): String? {
+        return prefs.getString("hardcover_token", null)
+    }
+
+    /**
+     * Saves the Hardcover API token.
+     *
+     * @param token Hardcover API token string to store.
+     */
+    fun saveHardcoverToken(token: String) {
+        prefs.edit().putString("hardcover_token", token).apply()
+    }
+
     private val json = Json {
         prettyPrint = true
         ignoreUnknownKeys = true
@@ -240,6 +258,39 @@ class ReadingStateRepository(private val context: Context) {
             lastOpenedTimestamp = now
         )
         saveBookState(newState)
+    }
+
+    /**
+     * Updates the hardcover book ID linked to a local EPUB file.
+     *
+     * @param uriString Unique EPUB URI string.
+     * @param fileName File name of the EPUB file.
+     * @param hardcoverBookId The Hardcover book ID, or null to unlink.
+     */
+    suspend fun updateHardcoverBookId(uriString: String, fileName: String, hardcoverBookId: Int?) = withContext(Dispatchers.IO) {
+        val existing = getBookState(uriString, fileName)
+        if (existing != null) {
+            saveBookState(existing.copy(hardcoverBookId = hardcoverBookId))
+        } else {
+            saveBookState(BookState(uriString = uriString, fileName = fileName, hardcoverBookId = hardcoverBookId))
+        }
+    }
+
+    /**
+     * Overrides the title and author metadata for a local EPUB file.
+     *
+     * @param uriString Unique EPUB URI string.
+     * @param fileName File name of the EPUB file.
+     * @param title New title.
+     * @param author New author.
+     */
+    suspend fun updateBookMetadata(uriString: String, fileName: String, title: String, author: String) = withContext(Dispatchers.IO) {
+        val existing = getBookState(uriString, fileName)
+        if (existing != null) {
+            saveBookState(existing.copy(title = title, author = author))
+        } else {
+            saveBookState(BookState(uriString = uriString, fileName = fileName, title = title, author = author))
+        }
     }
 
     /**

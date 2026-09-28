@@ -52,7 +52,8 @@ class LibraryRepository(
                 progressPercentage = savedState.progressPercentage,
                 bookmarksCount = savedState.bookmarks.size,
                 totalReadingTimeSeconds = savedState.totalReadingTimeSeconds,
-                isCompleted = savedState.isCompleted
+                isCompleted = savedState.isCompleted,
+                hardcoverBookId = savedState.hardcoverBookId
             )
         }.sortedWith(
             compareByDescending<BookMetadata> { it.lastOpenedTimestamp }
@@ -118,7 +119,8 @@ class LibraryRepository(
                     progressPercentage = savedState?.progressPercentage ?: 0f,
                     bookmarksCount = savedState?.bookmarks?.size ?: 0,
                     totalReadingTimeSeconds = savedState?.totalReadingTimeSeconds ?: 0L,
-                    isCompleted = savedState?.isCompleted ?: false
+                    isCompleted = savedState?.isCompleted ?: false,
+                    hardcoverBookId = savedState?.hardcoverBookId
                 )
             )
         }
