@@ -174,7 +174,7 @@ fun LibraryScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Rescan Folder") },,
+                            text = { Text("Rescan Folder") },
                             onClick = {
                                 onRescanClick()
                             },
