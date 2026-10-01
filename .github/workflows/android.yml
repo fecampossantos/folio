@@ -56,3 +56,13 @@ jobs:
           name: app-release
           path: app/build/outputs/apk/release/app-release.apk
           retention-days: 3
+
+      # ----------------------------------------------------
+      # LIMPEZA OBRIGATÓRIA DO RUNNER LOCAL (Prevenção de disco)
+      # ----------------------------------------------------
+      - name: Limpar workspace e parar daemons
+        if: always()
+        run: |
+          ./gradlew --stop || true
+          rm -rf "${{ github.workspace }}"/*
+          rm -rf "${{ github.workspace }}"/.[!.]*
