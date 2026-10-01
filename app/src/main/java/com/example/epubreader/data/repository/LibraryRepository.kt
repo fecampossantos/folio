@@ -38,6 +38,7 @@ class LibraryRepository(
             } else {
                 "Never opened"
             }
+            val format = if (savedState.fileName.endsWith(".pdf", ignoreCase = true)) "PDF" else "EPUB"
             BookMetadata(
                 uri = fileUri,
                 fileName = savedState.fileName,
@@ -53,17 +54,16 @@ class LibraryRepository(
                 bookmarksCount = savedState.bookmarks.size,
                 totalReadingTimeSeconds = savedState.totalReadingTimeSeconds,
                 isCompleted = savedState.isCompleted,
-                hardcoverBookId = savedState.hardcoverBookId
+                hardcoverBookId = savedState.hardcoverBookId,
+                format = format
             )
         }.sortedWith(
             compareByDescending<BookMetadata> { it.lastOpenedTimestamp }
                 .thenBy { it.title }
         )
     }
-
-
     /**
-     * Scans the directory tree at the given SAF [treeUri] for `.epub` files.
+     * Scans the directory tree at the given SAF [treeUri] for supported files (.epub, .pdf).
      *
      * @param treeUri Content URI representing the user-selected folder.
      * @return List of discovered [BookMetadata] objects enriched with reading history.
@@ -72,26 +72,29 @@ class LibraryRepository(
         val rootDir = DocumentFile.fromTreeUri(context, treeUri) ?: return@withContext emptyList()
         val history = stateRepository.loadHistory(overrideFolderUri = treeUri.toString())
 
-        val epubFiles = mutableListOf<DocumentFile>()
-        findEpubFiles(rootDir, epubFiles)
+        val supportedFiles = mutableListOf<DocumentFile>()
+        findSupportedFiles(rootDir, supportedFiles)
 
         val result = mutableListOf<BookMetadata>()
-        for (file in epubFiles) {
+        for (file in supportedFiles) {
             val fileUri = file.uri
             val uriString = fileUri.toString()
             val fileName = file.name ?: "Unknown.epub"
+            val format = if (fileName.endsWith(".pdf", ignoreCase = true)) "PDF" else "EPUB"
 
             val savedState = history.books.find {
                 it.uriString == uriString || (fileName.isNotEmpty() && it.fileName == fileName)
             }
-            val (parsedTitle, parsedAuthor) = EpubParser.parseMetadata(context, fileUri, fileName)
+            
+            val parser = if (format == "PDF") com.example.epubreader.util.PdfParser else EpubParser
+            val (parsedTitle, parsedAuthor) = parser.parseMetadata(context, fileUri, fileName)
 
             val title = savedState?.title?.takeIf { it.isNotBlank() } ?: parsedTitle
             val author = savedState?.author?.takeIf { it.isNotBlank() } ?: parsedAuthor
 
             // Cover image resolution (Saved custom cover -> Automatically extracted EPUB cover)
             var coverPath = savedState?.coverImagePath
-            if (coverPath.isNullOrEmpty()) {
+            if (coverPath.isNullOrEmpty() && format == "EPUB") {
                 coverPath = CoverManager.extractAndSaveEpubCover(context, fileUri)
                 if (coverPath != null) {
                     stateRepository.updateBookCoverPath(uriString, coverPath, fileName)
@@ -120,7 +123,8 @@ class LibraryRepository(
                     bookmarksCount = savedState?.bookmarks?.size ?: 0,
                     totalReadingTimeSeconds = savedState?.totalReadingTimeSeconds ?: 0L,
                     isCompleted = savedState?.isCompleted ?: false,
-                    hardcoverBookId = savedState?.hardcoverBookId
+                    hardcoverBookId = savedState?.hardcoverBookId,
+                    format = format
                 )
             )
         }
@@ -133,19 +137,22 @@ class LibraryRepository(
     }
 
     /**
-     * Recursively traverses document tree files looking for `.epub` extension.
+     * Recursively traverses document tree files looking for supported extensions.
      *
      * @param dir DocumentFile directory node.
-     * @param outList List to accumulate found EPUB files.
+     * @param outList List to accumulate found files.
      */
-    private fun findEpubFiles(dir: DocumentFile, outList: MutableList<DocumentFile>) {
+    private fun findSupportedFiles(dir: DocumentFile, outList: MutableList<DocumentFile>) {
         if (!dir.canRead()) return
         val files = dir.listFiles()
         for (file in files) {
             if (file.isDirectory) {
-                findEpubFiles(file, outList)
-            } else if (file.isFile && (file.name?.endsWith(".epub", ignoreCase = true) == true)) {
-                outList.add(file)
+                findSupportedFiles(file, outList)
+            } else if (file.isFile) {
+                val name = file.name ?: ""
+                if (name.endsWith(".epub", ignoreCase = true) || name.endsWith(".pdf", ignoreCase = true)) {
+                    outList.add(file)
+                }
             }
         }
     }

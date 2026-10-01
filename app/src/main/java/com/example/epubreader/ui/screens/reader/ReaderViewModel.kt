@@ -9,8 +9,9 @@ import com.example.epubreader.data.model.Bookmark
 import com.example.epubreader.data.model.TextSnippet
 import com.example.epubreader.data.model.BookState
 import com.example.epubreader.data.repository.ReadingStateRepository
-import com.example.epubreader.util.EpubChapter
+import com.example.epubreader.util.DocumentChapter
 import com.example.epubreader.util.EpubParser
+import com.example.epubreader.util.PdfParser
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,9 +47,10 @@ enum class ReaderThemeMode {
  */
 data class ReaderUiState(
     val isLoading: Boolean = true,
+    val bookUri: Uri? = null,
     val title: String = "",
     val author: String = "",
-    val chapters: List<EpubChapter> = emptyList(),
+    val chapters: List<DocumentChapter> = emptyList(),
     val currentChapterIndex: Int = 0,
     val currentPageIndex: Int = 0,
     val totalPagesInCurrentChapter: Int = 1,
@@ -94,10 +96,14 @@ class ReaderViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.value = _uiState.value.copy(isLoading = true)
 
-            val parsedEpub = EpubParser.parseEpub(context, bookUri, bookFileName)
+            val parsedDocument = if (bookFileName.endsWith(".pdf", ignoreCase = true)) {
+                PdfParser.parseDocument(context, bookUri, bookFileName)
+            } else {
+                EpubParser.parseDocument(context, bookUri, bookFileName)
+            }
             val savedState = stateRepository.getBookState(bookUri.toString(), bookFileName)
 
-            val initialChapter = savedState?.currentChapterIndex?.coerceIn(0, (parsedEpub.chapters.size - 1).coerceAtLeast(0)) ?: 0
+            val initialChapter = savedState?.currentChapterIndex?.coerceIn(0, (parsedDocument.chapters.size - 1).coerceAtLeast(0)) ?: 0
             val initialPage = savedState?.currentPageIndex ?: 0
             val themeMode = savedState?.readerThemeMode?.let { name ->
                 try { ReaderThemeMode.valueOf(name) } catch (e: Exception) { ReaderThemeMode.LIGHT }
@@ -109,9 +115,10 @@ class ReaderViewModel(
 
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
-                title = parsedEpub.title,
-                author = parsedEpub.author,
-                chapters = parsedEpub.chapters,
+                bookUri = bookUri,
+                title = parsedDocument.title,
+                author = parsedDocument.author,
+                chapters = parsedDocument.chapters,
                 currentChapterIndex = initialChapter,
                 currentPageIndex = initialPage,
                 themeMode = themeMode,
@@ -119,15 +126,15 @@ class ReaderViewModel(
                 bookmarks = bookmarks,
                 totalReadingTimeSeconds = savedTime,
                 isCompleted = isCompleted,
-                progressPercentage = calculateProgress(initialChapter, parsedEpub.chapters.size)
+                progressPercentage = calculateProgress(initialChapter, parsedDocument.chapters.size)
             )
 
             // Update opened timestamp in JSON
             stateRepository.recordBookOpened(
                 uriString = bookUri.toString(),
                 fileName = bookFileName,
-                title = parsedEpub.title,
-                author = parsedEpub.author
+                title = parsedDocument.title,
+                author = parsedDocument.author
             )
 
             // Start reading time counter ticker

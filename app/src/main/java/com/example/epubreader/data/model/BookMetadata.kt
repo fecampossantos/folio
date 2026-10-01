@@ -19,6 +19,8 @@ import android.net.Uri
  * @property bookmarksCount Total bookmarks saved for this book.
  * @property totalReadingTimeSeconds Total reading time accumulated in seconds.
  * @property isCompleted True if user finished reading book.
+ * @property hardcoverBookId ID of the book in Hardcover.
+ * @property format The document format (e.g., EPUB, PDF).
  */
 data class BookMetadata(
     val uri: Uri,
@@ -35,5 +37,6 @@ data class BookMetadata(
     val bookmarksCount: Int = 0,
     val totalReadingTimeSeconds: Long = 0L,
     val isCompleted: Boolean = false,
-    val hardcoverBookId: Int? = null
+    val hardcoverBookId: Int? = null,
+    val format: String = "EPUB"
 )

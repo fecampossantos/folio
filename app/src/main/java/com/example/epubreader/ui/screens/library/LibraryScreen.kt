@@ -78,6 +78,8 @@ fun LibraryScreen(
     var bookToLink by remember { mutableStateOf<BookMetadata?>(null) }
     var bookToEditMetadata by remember { mutableStateOf<BookMetadata?>(null) }
     var selectedTab by remember { mutableStateOf("Books") }
+    var selectedCategory by remember { mutableStateOf("All") }
+    val categories = listOf("All", "EPUB", "PDF", "Completed")
 
     Scaffold(
         topBar = {
@@ -343,8 +345,29 @@ fun LibraryScreen(
                     },
                     singleLine = true
                 )
-
-
+                
+                ScrollableTabRow(
+                    selectedTabIndex = categories.indexOf(selectedCategory),
+                    modifier = Modifier.fillMaxWidth(),
+                    edgePadding = 16.dp,
+                    divider = {}
+                ) {
+                    categories.forEachIndexed { index, category ->
+                        Tab(
+                            selected = selectedCategory == category,
+                            onClick = { selectedCategory = category },
+                            text = { Text(category) }
+                        )
+                    }
+                }
+                
+                val filteredBooks = uiState.displayedBooks.filter { book ->
+                    when (selectedCategory) {
+                        "All" -> true
+                        "Completed" -> book.isCompleted || book.progressPercentage >= 99f
+                        else -> book.format.equals(selectedCategory, ignoreCase = true)
+                    }
+                }
 
                 // Main Library Content List
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -408,7 +431,7 @@ fun LibraryScreen(
                                 }
                             }
                         }
-                        uiState.displayedBooks.isEmpty() -> {
+                        filteredBooks.isEmpty() -> {
                             Column(
                                 modifier = Modifier.fillMaxSize(),
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -426,7 +449,7 @@ fun LibraryScreen(
                                 contentPadding = PaddingValues(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                items(uiState.displayedBooks, key = { it.uri.toString() }) { book ->
+                                items(filteredBooks, key = { it.uri.toString() }) { book ->
                                     BookItemCard(
                                         book = book,
                                         onClick = { onBookClick(book) },
@@ -656,13 +679,28 @@ fun BookItemCard(
                     }
                 }
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = book.author,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = MaterialTheme.shapes.extraSmall
+                    ) {
+                        Text(
+                            text = book.format,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = book.author,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(

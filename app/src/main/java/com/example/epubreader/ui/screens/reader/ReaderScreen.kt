@@ -111,7 +111,8 @@ fun ReaderScreen(
         val fontSizeSp = uiState.fontSizeSp
         val textStyle = MaterialTheme.typography.bodyLarge.copy(
             fontSize = fontSizeSp.sp,
-            lineHeight = (fontSizeSp * 1.5f).sp
+            lineHeight = (fontSizeSp * 1.6f).sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Justify
         )
 
         val availableHeightDp = (heightDp - 140f).coerceAtLeast(100f)
@@ -428,39 +429,65 @@ fun ReaderScreen(
                         Text(if (uiState.isLoading) "Loading book contents..." else "Formatting pages...", color = textColor)
                     }
                 } else if (allBookPages.isNotEmpty()) {
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.fillMaxSize()
-                    ) { pageIndex ->
-                        val pageLoc = allBookPages.getOrNull(pageIndex)
-                        var textFieldValue by remember(pageLoc?.text) {
-                            mutableStateOf(TextFieldValue(pageLoc?.text ?: ""))
-                        }
-                        
-                        LaunchedEffect(textFieldValue.selection) {
-                            if (!textFieldValue.selection.collapsed) {
-                                val selected = textFieldValue.annotatedString.substring(textFieldValue.selection.start, textFieldValue.selection.end)
-                                selectedSnippetText = selected
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.fillMaxSize()
+                        ) { pageIndex ->
+                            val pageLoc = allBookPages.getOrNull(pageIndex)
+                            var textFieldValue by remember(pageLoc?.text) {
+                                mutableStateOf(TextFieldValue(pageLoc?.text ?: ""))
+                            }
+                            
+                            LaunchedEffect(textFieldValue.selection) {
+                                if (!textFieldValue.selection.collapsed) {
+                                    val selected = textFieldValue.annotatedString.substring(textFieldValue.selection.start, textFieldValue.selection.end)
+                                    selectedSnippetText = selected
+                                } else {
+                                    selectedSnippetText = null
+                                }
+                            }
+
+                            val textContent = pageLoc?.text ?: ""
+                            if (textContent.startsWith("PDF_PAGE_") && uiState.bookUri != null) {
+                                val pdfPageIndex = textContent.removePrefix("PDF_PAGE_").toIntOrNull() ?: 0
+                                PdfPageViewer(uri = uiState.bookUri, pageIndex = pdfPageIndex)
                             } else {
-                                selectedSnippetText = null
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 24.dp, vertical = 24.dp), // Increased vertical padding
+                                    contentAlignment = Alignment.TopStart
+                                ) {
+                                    BasicTextField(
+                                        value = textFieldValue,
+                                        onValueChange = { 
+                                            textFieldValue = it.copy(text = pageLoc?.text ?: "") 
+                                        },
+                                        readOnly = true,
+                                        textStyle = textStyle.copy(color = textColor),
+                                        cursorBrush = SolidColor(Color.Transparent),
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
                             }
                         }
 
-                        Box(
+                        // Subtle Page Indicator when toolbars are hidden
+                        AnimatedVisibility(
+                            visible = isFullscreen,
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 24.dp, vertical = 16.dp),
-                            contentAlignment = Alignment.TopStart
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 12.dp),
+                            enter = androidx.compose.animation.fadeIn(),
+                            exit = androidx.compose.animation.fadeOut()
                         ) {
-                            BasicTextField(
-                                value = textFieldValue,
-                                onValueChange = { 
-                                    textFieldValue = it.copy(text = pageLoc?.text ?: "") 
-                                },
-                                readOnly = true,
-                                textStyle = textStyle.copy(color = textColor),
-                                cursorBrush = SolidColor(Color.Transparent),
-                                modifier = Modifier.fillMaxSize()
+                            Text(
+                                text = "${pagerState.currentPage + 1} / ${allBookPages.size}",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.sp,
+                                    color = textColor.copy(alpha = 0.5f)
+                                )
                             )
                         }
                     }
@@ -725,4 +752,59 @@ fun ReaderScreen(
     }
 }
 
+/**
+ * Composable that natively renders a single page of a PDF document using PdfRenderer.
+ *
+ * @param uri URI of the PDF document.
+ * @param pageIndex Zero-based page index to render.
+ */
+@Composable
+fun PdfPageViewer(uri: android.net.Uri, pageIndex: Int) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+    LaunchedEffect(uri, pageIndex) {
+        withContext(Dispatchers.IO) {
+            var pfd: android.os.ParcelFileDescriptor? = null
+            var renderer: android.graphics.pdf.PdfRenderer? = null
+            var page: android.graphics.pdf.PdfRenderer.Page? = null
+            try {
+                pfd = context.contentResolver.openFileDescriptor(uri, "r")
+                if (pfd != null) {
+                    renderer = android.graphics.pdf.PdfRenderer(pfd)
+                    if (pageIndex < renderer.pageCount) {
+                        page = renderer.openPage(pageIndex)
+                        val width = context.resources.displayMetrics.widthPixels
+                        val height = (width.toFloat() / page.width * page.height).toInt()
+                        val renderedBitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+                        
+                        val canvas = android.graphics.Canvas(renderedBitmap)
+                        canvas.drawColor(android.graphics.Color.WHITE)
+                        
+                        page.render(renderedBitmap, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        bitmap = renderedBitmap
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                page?.close()
+                renderer?.close()
+                pfd?.close()
+            }
+        }
+    }
+
+    if (bitmap != null) {
+        androidx.compose.foundation.Image(
+            bitmap = androidx.compose.ui.graphics.asImageBitmap(bitmap!!),
+            contentDescription = "PDF Page ${pageIndex + 1}",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+        )
+    } else {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    }
 }

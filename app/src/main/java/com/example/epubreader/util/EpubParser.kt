@@ -8,35 +8,9 @@ import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
 
 /**
- * Data representation of a parsed EPUB document.
- *
- * @property title Extracted title of the book.
- * @property author Extracted author of the book.
- * @property chapters List of extracted text contents for each chapter in spine order.
- */
-data class ParsedEpub(
-    val title: String,
-    val author: String,
-    val chapters: List<EpubChapter>
-)
-
-/**
- * Data representation of a single EPUB chapter.
- *
- * @property index Zero-based index of the chapter.
- * @property title Chapter header or fallback title.
- * @property content Cleaned text content of the chapter.
- */
-data class EpubChapter(
-    val index: Int,
-    val title: String,
-    val content: String
-)
-
-/**
  * Utility object for extracting metadata and text content from EPUB files.
  */
-object EpubParser {
+object EpubParser : DocumentParser {
 
     /**
      * Splits chapter content into readable page chunks based on paragraph breaks and dynamic page character capacity.
@@ -107,7 +81,7 @@ object EpubParser {
      * @param fallbackFileName Fallback title if metadata title is missing.
      * @return Pair of (Title, Author).
      */
-    fun parseMetadata(context: Context, uri: Uri, fallbackFileName: String): Pair<String, String> {
+    override fun parseMetadata(context: Context, uri: Uri, fallbackFileName: String): Pair<String, String> {
         return try {
             val fileMap = readZipEntries(context.contentResolver.openInputStream(uri))
             val opfPath = findOpfPath(fileMap) ?: return Pair(fallbackFileName.removeSuffix(".epub"), "Unknown Author")
@@ -125,24 +99,24 @@ object EpubParser {
      * @param context Application context used to open input stream.
      * @param uri Content URI pointing to the EPUB file.
      * @param fallbackFileName Fallback title if metadata title is missing.
-     * @return Parsed [ParsedEpub] instance containing chapters and metadata.
+     * @return Parsed [ParsedDocument] instance containing chapters and metadata.
      */
-    fun parseEpub(context: Context, uri: Uri, fallbackFileName: String): ParsedEpub {
+    override fun parseDocument(context: Context, uri: Uri, fallbackFileName: String): ParsedDocument {
         try {
             val fileMap = readZipEntries(context.contentResolver.openInputStream(uri))
-            val opfPath = findOpfPath(fileMap) ?: return createFallbackEpub(fallbackFileName)
-            val opfContent = fileMap[opfPath] ?: return createFallbackEpub(fallbackFileName)
+            val opfPath = findOpfPath(fileMap) ?: return createFallbackDocument(fallbackFileName)
+            val opfContent = fileMap[opfPath] ?: return createFallbackDocument(fallbackFileName)
 
             val (title, author) = extractMetadataFromOpf(opfContent, fallbackFileName)
             val spineHrefList = extractSpineHrefsFromOpf(opfContent, opfPath)
 
-            val chapters = mutableListOf<EpubChapter>()
+            val chapters = mutableListOf<DocumentChapter>()
             spineHrefList.forEachIndexed { _, href ->
                 val chapterContent = fileMap[href] ?: fileMap[normalizePath(href)] ?: ""
                 val cleanText = stripHtmlTags(chapterContent)
                 if (cleanText.isNotBlank()) {
                     chapters.add(
-                        EpubChapter(
+                        DocumentChapter(
                             index = chapters.size,
                             title = "Chapter ${chapters.size + 1}",
                             content = cleanText
@@ -152,17 +126,17 @@ object EpubParser {
             }
 
             if (chapters.isEmpty()) {
-                chapters.add(EpubChapter(0, "Content", "No readable chapters found in this EPUB file."))
+                chapters.add(DocumentChapter(0, "Content", "No readable chapters found in this EPUB file."))
             }
 
-            return ParsedEpub(
+            return ParsedDocument(
                 title = title,
                 author = author,
                 chapters = chapters
             )
         } catch (e: Exception) {
             e.printStackTrace()
-            return createFallbackEpub(fallbackFileName)
+            return createFallbackDocument(fallbackFileName)
         }
     }
 
@@ -306,16 +280,16 @@ object EpubParser {
     }
 
     /**
-     * Helper to build a fallback [ParsedEpub] when parsing fails.
+     * Helper to build a fallback [ParsedDocument] when parsing fails.
      *
      * @param fallbackFileName File name to display as title.
-     * @return Fallback epub document.
+     * @return Fallback document.
      */
-    private fun createFallbackEpub(fallbackFileName: String): ParsedEpub {
-        return ParsedEpub(
+    private fun createFallbackDocument(fallbackFileName: String): ParsedDocument {
+        return ParsedDocument(
             title = fallbackFileName.removeSuffix(".epub"),
             author = "Unknown Author",
-            chapters = listOf(EpubChapter(0, "Error", "Could not parse EPUB contents."))
+            chapters = listOf(DocumentChapter(0, "Error", "Could not parse EPUB contents."))
         )
     }
 }
